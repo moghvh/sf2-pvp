@@ -55,3 +55,6 @@ Thumbs.db
 # use here, publishing it distributes the publisher's own keys and a tool whose only purpose is
 # undoing their content protection. That is not source of ours and it does not go in the repo.
 pvp/tools/decrypt-textassets.mjs
+
+# the deployment gate passphrase, if you set one (README, "Gating the content paths")
+gate.txt

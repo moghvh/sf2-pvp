@@ -124,9 +124,44 @@ mirror of the game's assets, and the header rules say so:
 Be clear about what that does and does not achieve. It stops cross-site `fetch`, canvas pixel reads
 from another page, cross-site embedding, and crawlers that honour robots rules. It does **not** stop
 anyone who simply requests the files: a browser game hands its assets to whatever asks for them, and
-no header changes that. If a deployment of this should not be reachable by strangers at all, do not
-put it on a public URL — put it behind your host's access control, or run it locally with
-`node pvp/server.mjs` (which binds `127.0.0.1` unless you set `SF2_HOST`).
+no response header changes that. A header binds a browser on another site and a crawler that chooses
+to obey; it never binds a client that just asks for the file.
+
+### Gating the content paths
+
+So the request itself is gated, before the file is read. `middleware.js` runs at the edge on `/`,
+`/apk`, `/cdn`, `/anim`, `/data`, `/clips.json` and `/families.json`. It does nothing at all unless
+the project has an `SF2_GATE` environment variable; with one set, those paths need a passphrase, and
+a visitor without it gets a page saying what this is rather than a broken lobby.
+
+Turn it on — write yourself a passphrase, then hand it to the project:
+
+```powershell
+node -e "const c=require('node:crypto');const a='abcdefghijkmnpqrstuvwxyz23456789';let s='';for(const b of c.randomBytes(16))s+=a[b%32];console.log(s)" > gate.txt
+```
+
+```powershell
+Get-Content gate.txt -Raw | npx vercel env add SF2_GATE production
+```
+
+```powershell
+node pvp/tools/build-deploy.mjs; npx vercel deploy --prod --yes
+```
+
+Then open `https://<your-host>/?key=<passphrase>` once: the key is exchanged for a year-long
+`HttpOnly` cookie and dropped from the address bar, and the fight plays normally from then on. An
+invite link carries both — `?key=<passphrase>&lobby=CODE`. Keep `gate.txt` out of the repository
+(`.gitignore` already covers it).
+
+Turn it off again with `npx vercel env rm SF2_GATE production` and another deploy. There is no other
+switch: with the variable unset the middleware returns immediately and the deployment behaves
+exactly as it did before.
+
+This is a shared passphrase, so it is worth what a shared passphrase is worth: it stops the drive-by
+and the bulk crawl, and anyone you give it to can still copy what they can see. The only complete
+close is not putting the content on a public URL at all — keep it behind your host's own access
+control, or run it locally with `node pvp/server.mjs`, which binds `127.0.0.1` unless you set
+`SF2_HOST`.
 
 ## Licence
 
