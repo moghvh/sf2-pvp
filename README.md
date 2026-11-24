@@ -116,8 +116,22 @@ stage was built and what each one left open.
 
 `pvp/tools/build-deploy.mjs` assembles `out/` from your own built data: the client, the tables, and
 roughly 250 MB of the game's art, audio and decoded animation. **That content is Nekki's, not
-yours to redistribute.** A deployment of this is for you and the people you invite, not a public
-mirror of the game's assets, and the header rules say so:
+yours to redistribute.**
+
+So it refuses to assemble anything until you say you mean to, and `vercel.json` deliberately does
+**not** carry that acknowledgement — a clone of this repository cannot become a public mirror of
+someone else's game in one command:
+
+```powershell
+node pvp/tools/build-deploy.mjs --with-content
+```
+
+For a hosted build, add `--with-content` to `buildCommand` in your own checkout's `vercel.json`
+(or set `SF2_PUBLISH_CONTENT=1` in the project's environment) once you have confirmed the content is
+yours to serve. Without it the build exits 2 and nothing is deployed.
+
+A deployment of this is for you and the people you invite, not a public mirror of the game's assets,
+and the header rules say so:
 
 | Route | What it sets, and why |
 | --- | --- |
@@ -152,7 +166,7 @@ Get-Content gate.txt -Raw | npx vercel env add SF2_GATE production
 ```
 
 ```powershell
-node pvp/tools/build-deploy.mjs; npx vercel deploy --prod --yes
+node pvp/tools/build-deploy.mjs --with-content; npx vercel deploy --prod --yes
 ```
 
 Then open `https://<your-host>/?key=<passphrase>` once: the key is exchanged for a year-long

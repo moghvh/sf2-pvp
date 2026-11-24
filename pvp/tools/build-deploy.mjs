@@ -15,7 +15,13 @@
 //
 // The WebSocket half of the game is api/ws.mjs, a Vercel Function running pvp/game.mjs.
 //
-//   node pvp/tools/build-deploy.mjs
+// Four of those five trees are the GAME'S content, not ours (README.md, "What this repository is"),
+// and `out/` on a public URL serves them to anything that asks — no response header changes that.
+// So this refuses to assemble them until the deployer says they mean to, which is what
+// `--with-content` is. Without it nothing is built and nothing is deployed; a cloner of this
+// repository cannot turn one command into a public mirror of someone else's game by accident.
+//
+//   node pvp/tools/build-deploy.mjs --with-content
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, CLIP_DIR, APK_CLIP_DIR, APK_ASSETS, clips, FAMILIES, ORPHAN_FAMILIES } from '../game.mjs';
@@ -23,6 +29,30 @@ import { DATA_DIR, CLIP_DIR, APK_CLIP_DIR, APK_ASSETS, clips, FAMILIES, ORPHAN_F
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const OUT = path.join(ROOT, 'out');
 const CDN = path.join(ROOT, 'extracted/web-cdn');
+
+// Checked before anything is read or written, so the refusal is the whole run.
+if (!process.argv.includes('--with-content') && !process.env.SF2_PUBLISH_CONTENT) {
+  console.error(`build-deploy: refusing to assemble out/ without --with-content.
+
+A deploy bundle is the client plus roughly 250 MB of the game's own art, audio and animation:
+
+  out/cdn    extracted/web-cdn      stage art, models, item icons, music
+  out/apk    extracted/apk-assets   textures and decoded audio
+  out/anim   the decoded clip bank
+  out/data   pvp/data               the tables the builders wrote from your copy
+
+Those are the publisher's. A deployment of them is for you and the people you invite, not a public
+mirror of their content, and headers cannot make it anything else: CORS, CORP and robots rules bind
+a browser on another site and a crawler that obeys, never a client that just requests the file. See
+README.md, "If you deploy it", including how to put the content behind a passphrase.
+
+If you have your own copy of the game and mean to serve it from your own URL, say so:
+
+  node pvp/tools/build-deploy.mjs --with-content
+
+For a hosted build, add the flag to buildCommand in vercel.json, or set SF2_PUBLISH_CONTENT=1.`);
+  process.exit(2);
+}
 
 // .ogg/.m4a: the web build's two sound sheets and its music tracks (extracted/web-cdn/audio)
 const KEEP_CDN = new Set(['.png', '.webp', '.json', '.fnt', '.ogg', '.m4a']);
