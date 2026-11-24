@@ -1,0 +1,12 @@
+{
+  "name": "sf2-pvp",
+  "private": true,
+  "type": "module",
+  "description": "Shadow Fight 2 PvP rebuilt from the game's own extracted assets: authoritative match server + canvas client.",
+  "scripts": {
+    "start": "node pvp/server.mjs",
+    "build": "node pvp/tools/build-deploy.mjs",
+    "test": "node pvp/test-weapons.mjs && node pvp/test-movesets.mjs && node pvp/test-hitboxes.mjs && node pvp/test-inputs.mjs && node pvp/test-match.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,19 @@
+# What the deployment does not need: the source workspace's own inputs and tooling.
+.re-notes/
+re-notes/
+unity-re/
+extracted/web-cdn/**/*.dat
+extracted/web-cdn/**/*.ktx
+extracted/web-cdn/**/*.dds
+extracted/apk-assets/textassets/**
+extracted/unity-packs/
+pvp/test-*.mjs
+.tmp/
+.opencode/
+.playwright-mcp/
+*.xapk
+*.apk
+_hzcheck.mjs
+_probe*.mjs
+cpu-check.ps1
+out/

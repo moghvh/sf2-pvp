@@ -1,0 +1,51 @@
+# =============================================================================================
+# Nothing of the game's own goes in this repository.
+#
+# This project is a reimplementation: the code is ours, the content is Nekki's. Every path below
+# is either the game's own bytes, something derived from them, or a local working file. A cloner
+# regenerates what they need from their own copy of the game with the builders in pvp/tools/.
+#
+# Verify before the first commit:
+#   GIT_DIR=../stage.git GIT_WORK_TREE=. git add -An . | wc -l      # ~120, not 8296
+# =============================================================================================
+
+# --- the game's own binaries -----------------------------------------------------------------
+*.apk
+*.xapk
+sf2_xapk/
+unity-re/
+
+# --- assets and data extracted or derived from the game --------------------------------------
+extracted/
+pvp/data/
+pvp/public/atlas/
+
+# --- the reverse-engineering workspace -------------------------------------------------------
+# the game's own sf2.js and XML, decompiled class dumps, IL2CPP metadata dumps, string dumps,
+# captured frames, third-party community mirrors, and the owner's working notes
+re-notes/
+rea/
+vel-gg/
+tmp/
+.tmp/
+
+# --- internal working memory -----------------------------------------------------------------
+# quotes private messages verbatim and indexes the excluded trees
+AGENTS.md
+
+# --- build output and deployment state -------------------------------------------------------
+out/
+.vercel/
+node_modules/
+*.log
+
+# --- local tooling and machine-specific helpers ----------------------------------------------
+.opencode/
+.playwright-mcp/
+_probe*.mjs
+_hzcheck.mjs
+*.ps1
+
+# --- OS / editor -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
