@@ -51,6 +51,14 @@ const RESUME_GIVE_UP_MS = 25000;        // a little past the server's own wait
 // watch only starts once this server has shown that it does send `hb`.
 let lastMsgAt = 0, hbSeen = false;
 const SILENCE_MS = 3000;
+// A fight that stops arriving while the socket itself is fine: the server steps every match on
+// one clock and sends a `state` per tick, and the only time it stops on purpose is while it
+// holds a seat for a tab that dropped -- which it says with `paused`. Anything else (a host
+// that ended the instance the match lived on, a socket the browser still calls open) leaves
+// this tab watching a frame that will never advance. Measured on the deployment: the wire tick
+// stood still for over a minute while the header still read "connected".
+let lastStateAt = 0, pausedOn = false;
+const STALL_MS = 8000;
 // A replacement socket is being opened next to the current one (the server asked: `renew`).
 // `pending` is that socket until the server has moved this tab's seat to it.
 let renewing = false, pending = null;
@@ -155,12 +163,23 @@ function connectionLost() {
   reconnectTimer = setTimeout(connect, reconnectDelay);
   reconnectDelay = Math.min(reconnectDelay * 2, 15000);
 }
-// the watch on a silent socket (see SILENCE_MS)
+// the watch on a silent socket (SILENCE_MS) and on a fight that stopped arriving (STALL_MS)
 setInterval(() => {
-  if (!hbSeen || !ws || ws.readyState !== 1 || performance.now() - lastMsgAt < SILENCE_MS) return;
-  const dead = ws;
+  if (!hbSeen || !ws) return;
+  const now = performance.now();
+  // CLOSING / CLOSED while this is still the connection: `onclose` has not come (and behind a
+  // proxy may not for seconds). Skipping those states, as this watch used to, is how a tab can
+  // sit on a dead socket reading "connected".
+  const dead = ws.readyState > 1
+    || (ws.readyState === 1 && now - lastMsgAt >= SILENCE_MS)
+    // the socket is answering but the fight is not being stepped on it
+    || (ws.readyState === 1 && playing && !pausedOn && lastStateAt && now - lastStateAt >= STALL_MS);
+  if (!dead) return;
+  const gone = ws;
   ws = null;                               // whatever it still says is not this connection's
-  try { dead.close(); } catch (e) { /* already gone */ }
+  try { gone.close(); } catch (e) { /* already gone */ }
+  // a reconnect says this tab's sid and the fight it was in, so the server either hands the
+  // seat back (`start` + `resumed`) or says the fight is gone -- both beat watching one frame
   connectionLost();
 }, 500);
 const send = o => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
@@ -188,6 +207,7 @@ function onMessage(m) {
   if (m.t === 'paused') {
     // the other fighter's connection dropped: the server holds the fight until it is back
     if (!playing) return;
+    pausedOn = !!m.on;                     // the stall watch must not fire while the fight waits
     if (m.on && m.who !== me) banner('Opponent reconnecting', 'the fight waits…');
     else if (!m.on) $('#banner').style.display = 'none';
     return;
@@ -201,7 +221,7 @@ function onMessage(m) {
       evCarry.push(...snap.events);
       if (evCarry.length > 64) evCarry.splice(0, evCarry.length - 64);
     }
-    snap = m; takeNodes(m); tickSounds(m); tickEffects(m);
+    snap = m; lastStateAt = performance.now(); takeNodes(m); tickSounds(m); tickEffects(m);
     return;
   }
   if (m.t === 'ended') {
@@ -219,7 +239,7 @@ function leaveMatch(title, sub) {
   banner(title, sub);
   setTimeout(() => {
     if (seq !== matchSeq) return;                   // a new match has started meanwhile
-    playing = false;
+    playing = false; lastStateAt = 0; pausedOn = false;
     stopMusic();
     document.body.classList.remove('fighting');
     for (const s of Object.keys(SOURCES)) clearSource(s);
@@ -242,6 +262,7 @@ const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': 
 // ---------------------------------------------------------------- match
 async function startMatch(m) {
   meta = m; me = m.you; playing = true; matchSeq++;
+  lastStateAt = 0; pausedOn = false;                // the stall watch starts with this fight
   // the item subtypes each fighter carries: moves.xml gates its <Effect> and <Sound> entries on
   // `<Conditions><Item SubType=…>` (one fireball move ships the fire/ice/energy effects)
   SUBS.p1 = (m.subtypes && m.subtypes.p1) || [];

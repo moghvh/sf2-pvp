@@ -410,12 +410,26 @@ export function attachGame(server, opts = {}) {
     return st && st.width && st.wall != null ? { half: st.width / 2 - st.wall, wall: st.wall, width: st.width } : null;
   };
   /** Where the stage stands its fighters: `<ModelsViewer PlayerPositionX EnemyPositionX>`
-   *  (`Gf.Ckb`, sf2.js @246900), centred on the stage like the walls. */
+   *  (`Gf.Ckb`, sf2.js @246900), centred on the stage like the walls.
+   *
+   *  OURS: the PAIR is then centred on the stage, keeping the file's own gap and side order.
+   *  45 of the 47 playable stages already place the two symmetrically about the stage's centre
+   *  (`playerX + enemyX == Width`), so for them this changes nothing at all. Two do not --
+   *  `dojo` (-290 / -7, midpoint -148.5) and `dojo_india24` (-268 / -5, midpoint -136.5) -- and
+   *  there the round opens with both fighters pushed into the left half of a room whose walls
+   *  (`left = Wall`, `right = Width - Wall`) and whose art are both symmetric about that centre.
+   *  The shipped game hides it behind a camera that keeps zooming and panning onto the pair;
+   *  this canvas holds 1 px = 1 arena unit (see WORLD_W in pvp/public/client.js), so the offset
+   *  is visible as a fight happening off to one side of the room. The file's own numbers are
+   *  kept in `file` for anything that wants to state them. */
   const startOf = (stage) => {
     for (const st of [...(ARENA_DATA.arenas || []), ...(CDN_DATA.arenas || [])]) {
       if (st.name !== stage || !st.width) continue;
       const mv = (st.layers || []).map((l) => l.modelsViewer).find(Boolean);
-      if (mv && Number.isFinite(mv.playerX) && Number.isFinite(mv.enemyX)) return { p1: mv.playerX - st.width / 2, p2: mv.enemyX - st.width / 2 };
+      if (!mv || !Number.isFinite(mv.playerX) || !Number.isFinite(mv.enemyX)) continue;
+      const p1 = mv.playerX - st.width / 2, p2 = mv.enemyX - st.width / 2;
+      const mid = (p1 + p2) / 2;
+      return { p1: p1 - mid, p2: p2 - mid, file: { p1, p2 }, offset: mid };
     }
     return null;
   };
