@@ -91,7 +91,7 @@ console.log('A — what this build ships for the five sets');
     return parseFloat(a['LCC' + k]);
   });
   ok(w.length === 2 && w.every((x) => near(x, 1.00334, 1e-5)), `both ends of the edge weigh Magic-Node1_1 by ${w.join(' / ')} (LCC)`);
-  ok(!clips.magic_empty, 'no source has the clip magic_empty (web bank, APK, the 18 downloadable packs)');
+  ok(!!clips.magic_empty, 'magic_empty is decoded (the FREE build\'s ZONE_RAID pack, stage 25)');
   // stage 19: the two clips the Magic set's objects play are shipped after all -- one by an
   // android pack, one inside the APK -- and are decoded with their source stated
   {
@@ -102,8 +102,8 @@ console.log('A — what this build ships for the five sets');
   }
   for (const c of ['saturn_blaster_shot_pistol', 'saturn_blaster_hide_pistol', 'saturn_blaster_strike_pistol', 'front_flip', 'two_hand_low_slash', 'jump_away', 'fireball_middle']) ok(!!clips[c], `the animation bank has the clip ${c}`);
   const fam = (id) => ALL.find((f) => f.id === id);
-  ok(['only:Arcane', 'only:Assistant', 'only:Saturn'].every((id) => fam(id) && fam(id).playable), 'only:Arcane, only:Assistant, only:Saturn are playable');
-  ok(['only:Blackness', 'only:Magic'].every((id) => fam(id) && !fam(id).playable && fam(id).reason === 'not-shipped' && fam(id).needs), 'only:Blackness, only:Magic are not offered, each with its reason');
+  ok(['only:Arcane', 'only:Assistant', 'only:Saturn', 'only:Blackness'].every((id) => fam(id) && fam(id).playable), 'only:Arcane, only:Assistant, only:Saturn, only:Blackness are playable');
+  ok(['only:Magic', 'only:Hoaxen', 'only:Musket'].every((id) => fam(id) && !fam(id).playable && fam(id).reason === 'not-shipped' && fam(id).needs), 'only:Magic, only:Hoaxen, only:Musket are not offered, each with its reason');
 }
 
 // ---------------------------------------------------------------- B: <Rotation>
@@ -262,11 +262,11 @@ console.log('\nE — Arcane: the ball from the far wall');
 console.log('\nF — the two sets this build cannot run');
 {
   const hand = moveXml('BlacknessGraspAbilityHandMove');
-  ok(/FileName="magic_empty\.bytes"/.test(hand) && !clips.magic_empty, 'Blackness: its hand plays magic_empty.bytes, a clip that is in neither bank');
+  ok(/FileName="magic_empty\.bytes"/.test(hand) && !!clips.magic_empty, 'Blackness: its hand plays magic_empty.bytes, decoded from the free ZONE_RAID pack');
   const subs = [...new Set([...LIST.matchAll(/<Item [^>]*Type="Magic"[^>]*SubType="([^"]*)"/g)].map((m) => m[1]))];
   ok(!subs.some((s) => ['MagicDragon', 'MagicKick', 'MagicScythe'].includes(s)), `Magic: no list.xml magic item has SubType MagicDragon / MagicKick / MagicScythe (${subs.length} magic subtypes listed)`);
   const B = duel('Fists', 200);
-  ok(!ALL.find((f) => f.id === 'only:Blackness').playable && !!B, 'neither is offered in the lobby (families.mjs `not-shipped`)');
+  ok(ALL.find((f) => f.id === 'only:Blackness').playable && !ALL.find((f) => f.id === 'only:Magic').playable && !!B, 'Blackness is offered, Magic is not (families.mjs `not-shipped`)');
 }
 
 console.log(`\n${fails ? 'FAIL' : 'PASS'}: ${checks - fails}/${checks} created-model checks`);

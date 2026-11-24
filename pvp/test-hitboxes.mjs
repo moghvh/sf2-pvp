@@ -150,8 +150,8 @@ const R = combat.reactions;
 const names = Object.keys(R);
 ok(names.length >= 40, `${names.length} <Hit Name> values mapped to reaction Moves`);
 const missing = names.filter((n) => !R[n].clip || !clips[R[n].clip]);
-ok(missing.length === 1 && missing[0] === 'HoaxenPierce',
-  'every mapped reaction clip exists in the decoded bank except the one boss hit name the pack does not ship',
+ok(missing.length === 0,
+  'every mapped reaction clip exists in the decoded bank (hoaxen_ability_hit: free ZONE_RAID pack, stage 25)',
   missing.length ? `${missing.map((n) => `${n}->${R[n].clip}`).join(', ')} (reported, not substituted)` : '');
 ok(R.High && R.High.clip === 'high_hit', '<Hit Name="High"> -> high_hit');
 ok(R.HighHeavy && R.HighHeavy.clip === 'high_hit_heavy', '<Hit Name="HighHeavy"> -> high_hit_heavy');

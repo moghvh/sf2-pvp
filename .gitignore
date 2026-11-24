@@ -58,3 +58,7 @@ pvp/tools/decrypt-textassets.mjs
 
 # the deployment gate passphrase, if you set one (README, "Gating the content paths")
 gate.txt
+
+# fetch-f2p-packs.mjs reads the free build's config_cdn, which exists only as output of the
+# gitignored decrypt tool above; it is local tooling, not source of ours.
+pvp/tools/fetch-f2p-packs.mjs
