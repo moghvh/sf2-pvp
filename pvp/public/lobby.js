@@ -190,7 +190,8 @@ function optionsFor(slot) {
   // gear only the game's opponents wear (ShopHide in list.xml + worn by a stages.xml <Warrior>;
   // the server's `oppOnly`): its own group, after the shop's items
   const opp = new Set(m.oppOnly || []);
-  const OPP = 'Opponents only (not sold in the game)';
+  const unsold = new Set(m.unsoldWeapons || []);
+  const OPP ='Opponents only (not sold in the game)';
   if (slot === 'class') {
     return classList().map((k) => ({
       id: k.id, name: k.name, arch: k.archetype, sub: k.tagline,
@@ -217,10 +218,13 @@ function optionsFor(slot) {
       return {
         id: fam.id, name: famName(fam), off, why,
         sub: off ? why : `${fam.moves.length} move${fam.moves.length === 1 ? '' : 's'}${set ? '' : ` · ${fam.itemCount} item${fam.itemCount === 1 ? '' : 's'}`}`,
-        group: !off ? (set ? 'Boss and special sets' : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? OPP : 'Weapons')
+        // a family whose every item is unsold and worn by no opponent (MAGIC_MINE: the perk's
+        // mine) is an ability's object, not a weapon: it goes with the special sets
+        group: !off ? (set || ((fam.items || []).length && fam.items.every((i) => unsold.has(i) && !opp.has(i))) ? 'Boss and special sets'
+          : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? OPP : 'Weapons')
           : dropped ? 'Not in the shipped game (its loader drops them)'
             : fam.reason === 'no-key' ? 'Objects and effects (no key starts them)' : 'Not playable',
-        rank: !off ? (set ? 1.5 : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? 1 : 0) : dropped ? 3 : 2,
+        rank: !off ? (set || ((fam.items || []).length && fam.items.every((i) => unsold.has(i) && !opp.has(i))) ? 1.5 : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? 1 : 0) : dropped ? 3 : 2,
         find: `${fam.id} ${fam.label} ${(fam.items || []).map(itemName).join(' ')}`,
         first: fam.id === 'Fists' ? 0 : 1,
       };

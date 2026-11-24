@@ -775,6 +775,10 @@ function spawnEffect(cue, anchor, owner) {
     sc: cue.sc || 1, ts: cue.ts || 1, loop: !!cue.loop,
     x: anchor.x, y: anchor.y, owner, part: cue.part || null,
     shift: cue.shift || [0, 0], follow: !!cue.follow,
+    // the camera centre the anchor was measured against: x is screen space, so a placed effect
+    // must be moved by the camera's pan since, or it stays on the screen while the world (and
+    // the mine that made it) slides away under it
+    cx: effCx,
   });
   return true;
 }
@@ -785,9 +789,11 @@ const EFFPOS = { p1: { move: null, f: -1 }, p2: { move: null, f: -1 } };
 // snapshot projectiles are fresh objects every tick, so their cue bookkeeping is keyed by the
 // sim's own `id` (a WeakMap would start from scratch on every snapshot and never fire a cue)
 const PROJPOS = new Map();
+let effCx = 0;   // camera centre of the snapshot cues are being spawned from
 function tickEffects(s) {
   if (!EFF || !EFFC || !s) return;
   const cx = camCentre(s);
+  effCx = cx;
   for (const pid of ['p1', 'p2']) {
     const st = s[pid];
     if (!st) continue;
@@ -873,12 +879,13 @@ function drawEffects(s, cx) {
       e.x = at[0] + e.shift[0] * st.facing;
       e.y = at[1] + e.shift[1];
       e.facing = st.facing;
+      e.cx = cx;
     }
     // an effect of a created object rides the object (`<Position Player="Me" … Follow="1">`),
     // and a looped one ends with it
     if (e.proj !== undefined && (e.follow || e.loop)) {
       const p = s && (s.projectiles || []).find((q) => q.id === e.proj);
-      if (p) { const at = projPartScreen(p.id, e.part, p, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] + e.shift[1]; e.facing = p.facing; }
+      if (p) { const at = projPartScreen(p.id, e.part, p, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] + e.shift[1]; e.facing = p.facing; e.cx = cx; }
       // the effect belongs to the object (`<Position Player="Me" … Follow="1">`): it goes with it
       else { e.dead = true; continue; }
     }
@@ -893,12 +900,13 @@ function drawEffects(s, cx) {
     // a trimmed sprite sits at its own offset inside the sequence's canvas, which is centred on
     // the anchor (Unity's 0.5 pivot): exactly what the TexturePacker `sourceSize`/`spriteSourceSize`
     // pair states.
-    const dx = e.x - (f.sw / 2) * e.sc + f.ox * e.sc;
+    const ex = e.x + ((e.cx ?? cx) - cx) * viewScale();   // world-fixed: undo the pan since spawn
+    const dx = ex - (f.sw / 2) * e.sc + f.ox * e.sc;
     const dy = e.y - (f.sh / 2) * e.sc + f.oy * e.sc;
     // a sequence is authored for a model facing +x; a model facing -x is the mirror image of
     // itself (`Ve.Tfb` negates every x), and so is what it emits
     if ((e.facing || 1) < 0) {
-      ctx.save(); ctx.translate(e.x, 0); ctx.scale(-1, 1); ctx.translate(-e.x, 0);
+      ctx.save(); ctx.translate(ex, 0); ctx.scale(-1, 1); ctx.translate(-ex, 0);
       ctx.drawImage(im, f.x, f.y, f.w, f.h, dx, dy, f.w * e.sc, f.h * e.sc);
       ctx.restore();
     } else ctx.drawImage(im, f.x, f.y, f.w, f.h, dx, dy, f.w * e.sc, f.h * e.sc);
@@ -2313,7 +2321,7 @@ window.SF2ARENA = {
   // the bone geometry the sim tests hits with, and the gear models being drawn from
   get soundLog() { return soundLog.slice(); },
   get soundBlocked() { return soundBlocked; },
-  get effects() { return effects.map((e) => ({ seq: e.seq, age: (snap ? snap.tick : 0) - e.born, x: e.x, y: e.y, proj: e.proj, part: e.part })); },
+  get effects() { return effects.map((e) => ({ seq: e.seq, age: (snap ? snap.tick : 0) - e.born, x: e.x, y: e.y, proj: e.proj, part: e.part, cx: e.cx, follow: e.follow, drawX: e.x + ((e.cx ?? camCentre(snap)) - camCentre(snap)) * viewScale(), cam: camCentre(snap) })); },
   projScreen: (id, part) => (snap ? projPartScreen(id, part, (snap.projectiles || []).find((p) => p.id === id) || { x: 0, y: 0 }, camCentre(snap)) : null),
   send: (o) => send(o),
   get sparks() { return sparks.map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), kind: s.kind })); },

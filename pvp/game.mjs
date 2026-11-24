@@ -448,6 +448,9 @@ export function attachGame(server, opts = {}) {
       // client draws (`Armor="Body"` -> the mesh entry `mdl_body`)
       helmItems: gearList(arsenal.helms),
       oppOnly: OPP_ONLY,
+      // weapon items list.xml marks ShopHide="1": not sold. A family made only of these and worn
+      // by no opponent is an object some other move creates (MAGIC_MINE), not a weapon to pick.
+      unsoldWeapons: arsenal.weapons.filter((i) => i.shopHide && i.name !== 'Fists').map((i) => i.name),
       armorItems: gearList(arsenal.armors),
       // OURS: the class roster the lobby offers. The records are served as /data/classes.json
       // like every other table; what the socket carries is which ids THIS server accepted
