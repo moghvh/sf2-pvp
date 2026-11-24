@@ -49,3 +49,9 @@ _hzcheck.mjs
 # --- OS / editor -----------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
+
+# --- not published: keys taken out of the game's own binary ----------------------------------
+# pvp/tools/decrypt-textassets.mjs carries AES keys recovered from libil2cpp.so. Whatever its
+# use here, publishing it distributes the publisher's own keys and a tool whose only purpose is
+# undoing their content protection. That is not source of ours and it does not go in the repo.
+pvp/tools/decrypt-textassets.mjs
