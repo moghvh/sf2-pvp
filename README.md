@@ -79,7 +79,7 @@ removing them would make this repository harder to audit, not safer. A citation 
 that is measured rather than asserted — `pvp/tools/check-no-engine-text.mjs` looks for every
 substantial line of every published file inside the game's own script, as written and with
 whitespace removed (it is minified, so a copied line would most likely appear there spaced
-differently). On the published tree it reports **0 matches over 7121 lines**. Run it against your
+differently). On the published tree it reports **0 matches over 7278 lines**. Run it against your
 own copy:
 
 ```powershell
@@ -88,13 +88,18 @@ node pvp/tools/check-no-engine-text.mjs
 
 ## Gates
 
-Thirteen headless suites. They need the data tables built.
+Fourteen headless suites. Most need the data tables built; `test-abuse` and `test-gate` do not.
 
 ```powershell
-node pvp/test-weapons.mjs; node pvp/test-movesets.mjs; node pvp/test-hitboxes.mjs; node pvp/test-inputs.mjs; node pvp/test-ragdoll.mjs; node pvp/test-sets.mjs; node pvp/test-skills.mjs; node pvp/test-locomotion.mjs; node pvp/test-events.mjs; node pvp/test-lobby.mjs; node pvp/test-practice.mjs
+node pvp/test-weapons.mjs; node pvp/test-movesets.mjs; node pvp/test-hitboxes.mjs; node pvp/test-inputs.mjs; node pvp/test-ragdoll.mjs; node pvp/test-sets.mjs; node pvp/test-skills.mjs; node pvp/test-locomotion.mjs; node pvp/test-events.mjs; node pvp/test-lobby.mjs; node pvp/test-practice.mjs; node pvp/test-abuse.mjs; node pvp/test-gate.mjs
 ```
 
 `node pvp/test-match.mjs` needs a server already running on 8787.
+
+`test-abuse` drives the match server over raw sockets, one check per defect it was hardened
+against — oversized frames, amplification, origin and connection limits, path traversal in the dev
+file server. `test-gate` runs `middleware.js` as the plain function it is, so the content gate below
+is checked here rather than discovered on a live deployment.
 
 ## What is ours, and what is not modelled
 
@@ -132,7 +137,9 @@ to obey; it never binds a client that just asks for the file.
 So the request itself is gated, before the file is read. `middleware.js` runs at the edge on `/`,
 `/apk`, `/cdn`, `/anim`, `/data`, `/clips.json` and `/families.json`. It does nothing at all unless
 the project has an `SF2_GATE` environment variable; with one set, those paths need a passphrase, and
-a visitor without it gets a page saying what this is rather than a broken lobby.
+a visitor without it gets a page saying what this is rather than a broken lobby. `node
+pvp/test-gate.mjs` checks all of that — refusals, the key-for-cookie exchange, the cookie's flags,
+near-miss keys and cookie names, and that `/api` stays unmatched so a running fight is not cut.
 
 Turn it on — write yourself a passphrase, then hand it to the project:
 
