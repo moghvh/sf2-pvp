@@ -114,7 +114,81 @@ const bodyModel = (c) => {
   };
 };
 
-export { ROOT, DATA_DIR, CLIP_DIR, APK_CLIP_DIR, APK_ASSETS, arsenal, FAMILIES, ORPHAN_FAMILIES, WEAPONS, clips, STAGES };
+// ------------------------------------------------------------------------------ classes (OURS)
+/** A CLASS is ours: Shadow Fight 2 has no such thing. It sells items, a player wears what they
+ *  bought, and in a PvP lobby that means whoever pairs the longest weapon with the fastest magic
+ *  has won before the round starts. What a class is MADE OF is not ours: each one names a shipped
+ *  weapon family and shipped ranged / magic / helm / armor items, and its balance is an attribute
+ *  override whose keys are the engine's own -- the same vector `Ac.Pm` (sf2.js @418935) lets a
+ *  stages.xml <Warrior> replace on the computed sum, which is how every boss in this game is
+ *  already balanced. pvp/tools/build-classes.mjs measures the families and writes
+ *  pvp/data/classes.json; what follows only refuses a record the shipped data cannot honour. */
+/** The attributes a class may set are ONLY the ones a fight actually reads. There are six, and
+ *  they are the ones `Fight` passes through `attrOf` on its own: `BlockDamageFactor`
+ *  (sim.mjs `blockMul`), `CriticalChance` / `CriticalDamage` (`critMul`) and the three magic
+ *  economy terms (`magicTerm`: `MagicInitialCharge`, `MagicPainRecharge`,
+ *  `MagicDamageRecharge`). */
+const CLASS_ATTRS = new Set(['CriticalChance', 'CriticalDamage', 'BlockDamageFactor',
+  'MagicInitialCharge', 'MagicPainRecharge', 'MagicDamageRecharge']);
+/** Every other attribute in the shipped `<StartingAttributes>` is a NO-OP in a duel, and saying
+ *  so is the whole point of refusing it: with the one shipped `<AttributesAlign Factor="1"
+ *  Shift="0">` the exponent is `base = (B - e) * (1 - Q) + (A - k) * Q` with `Q = 1`, so the
+ *  attacker's own `B` and the defender's own `e` CANCEL and only the two `alignTargets` survive.
+ *  A class that "hits harder" by writing WeaponDamage would change nothing and lie about it. */
+const CLASS_ATTRS_CANCELLED = {
+  WeaponDamage: 'cancels in the align formula (Factor="1")', UnarmedDamage: 'cancels in the align formula (Factor="1")',
+  RangedDamage: 'cancels in the align formula (Factor="1")', MagicDamage: 'cancels in the align formula (Factor="1")',
+  RaidChargeDamage: 'cancels in the align formula (Factor="1")', BodyDefense: 'cancels in the align formula (Factor="1")',
+  HeadDefense: 'cancels in the align formula (Factor="1")',
+  DamageFactor: 'the shipped engine never multiplies by it (no call site in sf2.js damage path)',
+  EnchantmentResistance: 'no shipped item or move carries an enchantment',
+  ShockCriticalHitChance: 'Shock is not ported (no shipped item sets its attributes)',
+  ShockHeadHitChance: 'Shock is not ported (no shipped item sets its attributes)',
+  InitialMagicCharge: 'the engine reads MagicInitialCharge; the <StartingAttributes> key is spelled the other way and is never read',
+};
+/** Why a class record cannot be served, in the shipped data's own terms. Empty = it can. */
+function classProblems(k) {
+  if (!k || typeof k.id !== 'string' || !k.id) return ['no id'];
+  const bad = [];
+  const fam = [...FAMILIES, ...ORPHAN_FAMILIES].find((f) => f.id === k.weapon);
+  if (!fam) bad.push(`no such family: ${k.weapon}`);
+  else if (fam.playable === false) bad.push(`family not playable: ${k.weapon}`);
+  if (!arsenal.ranged.some((i) => i.name === k.ranged && i.throwMove)) bad.push(`ranged has no throw move: ${k.ranged}`);
+  if (!arsenal.magic.some((i) => i.name === k.magic && i.throwMove)) bad.push(`magic has no throw move: ${k.magic}`);
+  if (!arsenal.helms.some((i) => i.name === k.helm && hasMesh(i.model))) bad.push(`helm has no mesh: ${k.helm}`);
+  if (!arsenal.armors.some((i) => i.name === k.armor && hasMesh(i.model))) bad.push(`armor has no mesh: ${k.armor}`);
+  for (const a of Object.keys(k.attrs || {})) {
+    if (CLASS_ATTRS.has(a)) continue;
+    bad.push(CLASS_ATTRS_CANCELLED[a] ? `${a} would do nothing: ${CLASS_ATTRS_CANCELLED[a]}`
+      : `attribute no fight reads: ${a}`);
+  }
+  return bad;
+}
+const CLASSES = [];
+try {
+  const raw = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'classes.json'), 'utf8'));
+  for (const k of raw.classes || []) {
+    const bad = classProblems(k);
+    if (bad.length) { console.warn(`[classes] ${k && k.id} dropped: ${bad.join('; ')}`); continue; }
+    CLASSES.push(k);
+  }
+} catch (e) { console.warn(`classes.json unavailable (${e.message}) — run: node pvp/tools/build-classes.mjs`); }
+const CLASS_BY_ID = new Map(CLASSES.map((k) => [k.id, k]));
+const DEFAULT_CLASS = CLASSES[0] ? CLASSES[0].id : null;
+/** A class pick IS the five loadout keys: everything downstream (the `<Conditions><Item SubType>`
+ *  gate on effect cues, the drawn meshes, `<Locks>`, which model's edges a strike resolves
+ *  through) keeps reading exactly the fields it always read. */
+const applyClass = (c, k) => { c.cls = k.id; c.weapon = k.weapon; c.ranged = k.ranged; c.magic = k.magic; c.helm = k.helm; c.armor = k.armor; };
+/** A fighter's attributes: the equipped items' own sum (`Ac.Pm`), and then -- for a class -- the
+ *  class's own vector written over it, which is exactly what a stages.xml <Warrior> tag does to
+ *  a boss (`if (this.pM.get(h, e)) { set }`). OURS: the numbers in that vector. The mechanism,
+ *  the key names and the sum underneath are the engine's. */
+const attrsOf = (c) => {
+  const k = c.cls ? CLASS_BY_ID.get(c.cls) : null;
+  return { ...attributesFor({ ...c, level: (k && k.level) || c.level || 1 }), ...((k && k.attrs) || {}) };
+};
+
+export { ROOT, DATA_DIR, CLIP_DIR, APK_CLIP_DIR, APK_ASSETS, arsenal, FAMILIES, ORPHAN_FAMILIES, WEAPONS, clips, STAGES, CLASSES, classProblems };
 
 /** Attach the lobby + match engine to any node:http server (local or Vercel Function). */
 export function attachGame(server, opts = {}) {
@@ -322,7 +396,7 @@ export function attachGame(server, opts = {}) {
       clients.delete(x.id);
       // what the tab had chosen and said goes with it: its loadout, its "ready", its place in
       // the public queue (a socket renewed in the lobby must not silently un-ready its player)
-      for (const k of ['weapon', 'ranged', 'magic', 'helm', 'armor', 'stage', 'stagePicked', 'ready']) c[k] = x[k];
+      for (const k of ['cls', 'weapon', 'ranged', 'magic', 'helm', 'armor', 'stage', 'stagePicked', 'ready']) c[k] = x[k];
       const qi = queue.indexOf(x.id);
       if (qi >= 0) queue[qi] = c.id;
       moveSeat(x.id, c, x.room, x.match);
@@ -375,8 +449,12 @@ export function attachGame(server, opts = {}) {
       helmItems: gearList(arsenal.helms),
       oppOnly: OPP_ONLY,
       armorItems: gearList(arsenal.armors),
+      // OURS: the class roster the lobby offers. The records are served as /data/classes.json
+      // like every other table; what the socket carries is which ids THIS server accepted
+      // (`classProblems` dropped the rest), so a client cannot offer a seat the server refuses.
+      classIds: CLASSES.map((k) => k.id),
       // only the players of this client's own lobby: its private room, or the public one
-      players: lobbyMates(c).map(c => ({ id: c.id, name: c.name, weapon: c.weapon, ready: c.ready, inMatch: !!c.match,
+      players: lobbyMates(c).map(c => ({ id: c.id, name: c.name, weapon: c.weapon, cls: c.cls, ready: c.ready, inMatch: !!c.match,
         ranged: c.ranged, magic: c.magic, stage: c.stage, helm: c.helm, armor: c.armor, body: bodyModel(c), roundSeconds: c.roundSeconds })),
       room: (() => { const r = c && roomOf(c); return r ? { code: r.code, size: r.members.length, max: ROOM_MAX, host: r.host } : null; })(),
     };
@@ -491,8 +569,9 @@ export function attachGame(server, opts = {}) {
         // Level is users_default.xml's shipped default (Level="1") until the lobby offers one.
         // A practice opponent: the same sum over its own items, then what its <Warrior> tag sets
         // itself, which `Pm` lets REPLACE the computed value (`if (this.pM.get(h, e)) { set }`).
-        attrs: { p1: attributesFor({ ...a, level: a.level ?? 1 }),
-          p2: bot ? { ...attributesFor({ ...b, level: 1 }), ...bot.seat.tagAttrs } : attributesFor({ ...b, level: b.level ?? 1 }) },
+        // A class seat writes its own vector over that sum the same way (`attrsOf`).
+        attrs: { p1: attrsOf(a),
+          p2: bot ? { ...attributesFor({ ...b, level: 1 }), ...bot.seat.tagAttrs } : attrsOf(b) },
         // the engine seeds its LCG from the wall clock (`Ea.BL()`); an authoritative server
         // picks one instead so both clients and a replay agree on every critical roll
         rngSeed: crypto.randomInt(1, 2147483647) }),
@@ -513,8 +592,8 @@ export function attachGame(server, opts = {}) {
       // override the opponent's choice.
       arena, walls,
       clips: Object.keys(clips),
-      p1: { name: a.name, weapon: a.weapon, ranged: a.ranged, magic: a.magic, helm: a.helm, armor: a.armor, body: bodyOf(a) },
-      p2: { name: b.name, weapon: b.weapon, ranged: b.ranged, magic: b.magic, helm: b.helm, armor: b.armor, body: bodyOf(b),
+      p1: { name: a.name, weapon: a.weapon, ranged: a.ranged, magic: a.magic, helm: a.helm, armor: a.armor, body: bodyOf(a), cls: a.cls || null },
+      p2: { name: b.name, weapon: b.weapon, ranged: b.ranged, magic: b.magic, helm: b.helm, armor: b.armor, body: bodyOf(b), cls: b.cls || null,
         ...(bot ? { weaponItem: bot.seat.weaponItem || null } : {}) },
       // a practice fight says so: who the computer plays, and with which of the game's tactics
       ...(bot ? { practice: { boss: bot.seat.boss, kind: bot.seat.kind, name: bot.seat.name, tactic: bot.seat.tactic, zone: bot.seat.zone } } : {}),
@@ -618,7 +697,11 @@ export function attachGame(server, opts = {}) {
 
     const c = { id: nextId++, name: 'Player', weapon: DEFAULT_WEAPON, ready: false, socket, match: null, room: null, badCodes: [], sid: null, openedAt: Date.now(), addr,
       ranged: DEFAULT_GEAR.ranged, magic: DEFAULT_GEAR.magic, stage: DEFAULT_STAGE, stagePicked: false, roundSeconds: ROUND_SECONDS,
-      helm: DEFAULT_GEAR.helm, armor: DEFAULT_GEAR.armor };
+      helm: DEFAULT_GEAR.helm, armor: DEFAULT_GEAR.armor, cls: null };
+    // OURS: a new tab starts on the first class rather than on the shipped starting warrior, so
+    // nobody fights a free-picked loadout by accident. Picking a weapon or a gear slot by hand
+    // leaves the class (`cls = null`) and the fight is a custom one -- see `case 'weapon'`.
+    if (DEFAULT_CLASS) applyClass(c, CLASS_BY_ID.get(DEFAULT_CLASS));
     clients.set(c.id, c);
 
     let buf = Buffer.alloc(0);
@@ -697,12 +780,29 @@ export function attachGame(server, opts = {}) {
         // a family the lobby shows but cannot offer (GiantSword ships no decoded animation)
         // would otherwise start a match with a fighter that has no move on any input
         const fam = [...FAMILIES, ...ORPHAN_FAMILIES].find((f) => f.id === msg.id);
-        if (fam && fam.playable !== false) { c.weapon = msg.id; broadcastLobby(); }
+        if (fam && fam.playable !== false) { c.weapon = msg.id; c.cls = null; broadcastLobby(); }
+        break;
+      }
+      // OURS: one of pvp/data/classes.json's records, which resolves to the five keys below.
+      // A class a record validated at load (`classProblems`) is the only thing accepted here, so
+      // nothing reaches a fight that the shipped data cannot build.
+      case 'class': {
+        const k = CLASS_BY_ID.get(msg.id);
+        if (k) { applyClass(c, k); broadcastLobby(); }
         break;
       }
       case 'gear': {
-        if (arsenal.ranged.some((i) => i.name === msg.ranged && i.throwMove)) c.ranged = msg.ranged;
-        if (arsenal.magic.some((i) => i.name === msg.magic && i.throwMove)) c.magic = msg.magic;
+        // A class owns the three slots a fight reads (weapon, ranged, magic) and only the look
+        // stays the player's: helm and armor change the drawn meshes and nothing else, because
+        // their BodyDefense / HeadDefense / UnarmedDamage cancel in the align formula and no
+        // shipped move locks on either slot. So re-styling keeps the class; touching ranged or
+        // magic leaves it.
+        const k = c.cls ? CLASS_BY_ID.get(c.cls) : null;
+        if (k && (msg.ranged !== k.ranged || msg.magic !== k.magic)) c.cls = null;
+        if (!c.cls) {
+          if (arsenal.ranged.some((i) => i.name === msg.ranged && i.throwMove)) c.ranged = msg.ranged;
+          if (arsenal.magic.some((i) => i.name === msg.magic && i.throwMove)) c.magic = msg.magic;
+        }
         if (arsenal.helms.some((i) => i.name === msg.helm && hasMesh(i.model))) c.helm = msg.helm;
         if (arsenal.armors.some((i) => i.name === msg.armor && hasMesh(i.model))) c.armor = msg.armor;
         broadcastLobby();

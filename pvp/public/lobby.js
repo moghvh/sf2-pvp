@@ -25,19 +25,38 @@ const loadPracticeList = () => (PRACTICE ? Promise.resolve(PRACTICE)
   : fetch('/data/practice.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
     .then((p) => (PRACTICE = p || { fighters: [] })));
 const foeOf = (id) => ((PRACTICE && PRACTICE.fighters) || []).find((f) => f.id === id) || null;
-const UI = { ready: false, slot: 'weapon', q: '', group: 'all', gridKey: '', detailKey: '', youKey: '', foeKey: '', slotKey: '', roomKey: '' };
+// OURS: the class roster (pvp/data/classes.json, built by pvp/tools/build-classes.mjs). The game
+// has no classes; what each one is MADE of is shipped, and every number on its card is measured
+// from the shipped data by pvp/tools/measure-families.mjs. The server says which ids it accepted
+// (`lobby.classIds`), so a record this file shows is one a fight can actually be built from.
+let CLASSES = null;
+const loadClasses = () => (CLASSES ? Promise.resolve(CLASSES)
+  : fetch('/data/classes.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    .then((c) => (CLASSES = c || { classes: [], excluded: [] })));
+const classList = () => {
+  const ok = new Set((LOBBY && LOBBY.classIds) || []);
+  return ((CLASSES && CLASSES.classes) || []).filter((k) => ok.has(k.id));
+};
+const classOf = (id) => classList().find((k) => k.id === id) || null;
+const UI = { ready: false, slot: 'class', q: '', group: 'all', gridKey: '', detailKey: '', youKey: '', foeKey: '', slotKey: '', roomKey: '' };
 const LOCAL = {};                 // a pick just clicked, until the server echoes it
 // A stage is only sent to the server once the player actually picks one: the server lets a pick
 // beat a default (`stagePicked`), and sending the default on connect made every client a picker.
 let arenaChosen = false;
 
 const SLOTS = [
-  { key: 'weapon', label: 'Weapon' },
-  { key: 'ranged', label: 'Ranged', cap: 'I' },
-  { key: 'magic', label: 'Magic', cap: 'O' },
+  // OURS: a class picks the three slots a fight reads at once, so nobody can pair the longest
+  // weapon in the game with the biggest spell in it. Helm and armor stay free: they change the
+  // drawn meshes and nothing a fight reads.
+  { key: 'class', label: 'Class' },
   { key: 'helm', label: 'Helm' },
   { key: 'armor', label: 'Armor' },
   { key: 'stage', label: 'Stage' },
+  // the hand-picked loadout the lobby used to be: still here, still playable, and no longer the
+  // default -- a free pick is where the unfairness was
+  { key: 'weapon', label: 'Weapon', custom: true },
+  { key: 'ranged', label: 'Ranged', cap: 'I', custom: true },
+  { key: 'magic', label: 'Magic', cap: 'O', custom: true },
   // not a piece of the loadout: who the computer plays when you practise (OURS -- the game has
   // no such screen; the opponents and everything they carry are stages.xml's own)
   { key: 'practice', label: 'Practice' },
@@ -114,6 +133,8 @@ function foeArt(id, h, w = 110) {
   return f.weapon ? itemArt(f.weapon, h, w) : null;
 }
 const artFor = (slot, id, h, w) => {
+  // a class is shown as its own weapon, posed by that weapon's own clip
+  if (slot === 'class') { const k = classOf(id); const f = k && famOf(k.weapon); return f ? famArt(f, h, w) : null; }
   if (slot === 'weapon') { const f = famOf(id); return f ? famArt(f, h, w) : null; }
   if (slot === 'stage') return null;
   if (slot === 'practice') return foeArt(id, h, w);
@@ -141,6 +162,9 @@ const meRow = () => (LOBBY ? LOBBY.players.find((p) => p.id === LOBBY.you) : nul
 function picks() {
   const r = meRow() || {};
   return {
+    // keyed `class` because that is the slot's own key; `null` is a real value here (a
+    // hand-picked slot left the class), so LOCAL.cls is read with `in` rather than with `||`
+    class: 'cls' in LOCAL ? LOCAL.cls : (r.cls || null),
     weapon: LOCAL.weapon || r.weapon || weapon,
     ranged: LOCAL.ranged || r.ranged || null,
     magic: LOCAL.magic || r.magic || null,
@@ -154,7 +178,8 @@ function picks() {
  *  every other name; a name several templates share (`NINJA` x 42) is told apart by its weapon. */
 const foeName = (f) => (f ? tidy(f.name || f.id) : '—');
 const slotValueName = (slot, id) => (slot === 'weapon' ? famName(famOf(id)) : slot === 'stage' ? (id ? tidy(id) : '—')
-  : slot === 'practice' ? foeName(foeOf(id)) : itemName(id));
+  : slot === 'class' ? ((classOf(id) || {}).name || 'Custom loadout')
+    : slot === 'practice' ? foeName(foeOf(id)) : itemName(id));
 
 const packName = (p) => (!p ? 'No pack label' : p === 'CLANS' ? 'Clans' : /^ZONE_/.test(p) ? 'Zone ' + p.slice(5).replace('_', '.') : tidy(p));
 const packRank = (p) => (!p ? -1 : /^ZONE_/.test(p) ? parseFloat(p.replace(/^ZONE_/, '').replace('_', '.').replace('IM', '6.5')) || 50 : 99);
@@ -166,6 +191,14 @@ function optionsFor(slot) {
   // the server's `oppOnly`): its own group, after the shop's items
   const opp = new Set(m.oppOnly || []);
   const OPP = 'Opponents only (not sold in the game)';
+  if (slot === 'class') {
+    return classList().map((k) => ({
+      id: k.id, name: k.name, arch: k.archetype, sub: k.tagline,
+      tags: [k.labels.range + ' range', k.labels.speed, k.labels.signature],
+      group: 'Classes', rank: 0, cls: true,
+      find: `${k.id} ${k.name} ${k.archetype} ${k.weapon} ${k.ranged} ${k.magic} ${k.labels.signature}`,
+    }));
+  }
   if (slot === 'weapon') {
     return (FAMILIES || []).map((fam) => {
       const off = fam.playable === false;
@@ -238,8 +271,20 @@ function optionsFor(slot) {
 // ---------------------------------------------------------------- choosing
 function choose(slot, id) {
   playSound('snd_click_1', 0.6);
-  if (slot === 'weapon') {
+  if (slot === 'class') {
+    const k = classOf(id);
+    if (!k) return;
+    // the class IS the five keys: they are set locally so the strip and the tabs answer at once,
+    // and the server's own echo (which validated the record at load) is what stays
+    myClass = id;
+    LOCAL.cls = id; LOCAL.weapon = k.weapon; LOCAL.ranged = k.ranged; LOCAL.magic = k.magic;
+    LOCAL.helm = k.helm; LOCAL.armor = k.armor;
+    weapon = k.weapon; myWeapon = k.weapon;
+    myGear = { ranged: k.ranged, magic: k.magic, helm: k.helm, armor: k.armor };
+    send({ t: 'class', id });
+  } else if (slot === 'weapon') {
     weapon = id; myWeapon = id; LOCAL.weapon = id;
+    LOCAL.cls = null; myClass = null;          // a hand-picked weapon leaves the class (server too)
     send({ t: 'weapon', id });
   } else if (slot === 'stage') {
     arenaPick = id; arenaChosen = true;
@@ -249,6 +294,8 @@ function choose(slot, id) {
   } else {
     LOCAL[slot] = id;
     myGear = { ...myGear, [slot]: id };
+    // helm and armor are the look and keep the class; ranged or magic by hand leaves it
+    if (slot === 'ranged' || slot === 'magic') { LOCAL.cls = null; myClass = null; }
     send({ t: 'gear', ...myGear });
   }
   paint();
@@ -367,10 +414,13 @@ function renderSlots() {
   UI.slotKey = key;
   const nav = $('#slots');
   nav.replaceChildren();
+  const firstCustom = (SLOTS.find((s) => s.custom) || {}).key;
   for (const s of SLOTS) {
-    const b = el('button', 'slot' + (s.key === UI.slot ? ' on' : ''));
+    const b = el('button', 'slot' + (s.key === UI.slot ? ' on' : '')
+      + (s.custom ? ' custom' : '') + (s.key === firstCustom ? ' first-custom' : ''));
     b.type = 'button';
     b.dataset.slot = s.key;
+    if (s.custom) b.title = 'Picked by hand: a loadout nothing balances';
     b.setAttribute('aria-pressed', s.key === UI.slot ? 'true' : 'false');
     const ico = el('span', 's-ico');
     const a = pk[s.key] ? artFor(s.key, pk[s.key], 36, 44) : null;
@@ -412,6 +462,20 @@ function renderGrid() {
     const shown = all.filter((o) => (UI.group === 'all' || o.group === UI.group) && (!q || `${o.name} ${o.find || ''} ${o.sub || ''}`.toLowerCase().includes(q)));
     grid.replaceChildren();
     grid.scrollTop = 0;
+    // why the two paths exist, in the grid itself (OURS, both of them)
+    const note = (html) => { const n = el('div', 'clsnote'); n.innerHTML = html; grid.appendChild(n); };
+    if (slot === 'class') {
+      note('A <b>class</b> picks your weapon, your thrown weapon and your spell together, so nobody '
+        + 'can pair the longest weapon in the game with the biggest spell in it. All eight are built out of the '
+        + 'game\'s own items and moves, and every number on a card is measured from the shipped data — the builder '
+        + 'checks every rule before a roster is written, among them: no class is in the top quarter of the roster '
+        + 'for both reach and startup, and none is ahead on more axes than it is behind on. '
+        + '<b>Helm and armor stay yours</b> — they change the meshes you are drawn with and nothing a fight reads.');
+    } else if (slot === 'weapon' || slot === 'ranged' || slot === 'magic') {
+      note('Picking by hand is still here, and <b>nothing balances it</b>: measured over this game\'s own data, '
+        + 'the longest weapon reaches 414 units and the shortest 151, and every magic item but two casts for 0.45 '
+        + 'of a health bar against a best-case weapon strike of 0.22. Touching this slot leaves your class.');
+    }
     const byGroup = groups.filter((g) => UI.group === 'all' || g === UI.group);
     for (const g of byGroup) {
       const list = shown.filter((o) => o.group === g)
@@ -423,7 +487,7 @@ function renderGrid() {
         grid.appendChild(h);
       }
       for (const o of list) {
-        const c = el('div', 'pc' + (o.off ? ' off' : '') + (o.text ? ' text' : ''));
+        const c = el('div', 'pc' + (o.off ? ' off' : '') + (o.text ? ' text' : '') + (o.cls ? ' cls' : ''));
         c.dataset.id = o.id;
         c.tabIndex = 0;
         c.setAttribute('role', 'button');
@@ -432,8 +496,14 @@ function renderGrid() {
         const a = o.text ? null : artFor(slot, o.id, 58, 108);
         if (a) art.appendChild(a);
         c.appendChild(art);
+        if (o.arch) c.appendChild(el('div', 'p-arch', o.arch.toUpperCase()));
         c.appendChild(el('b', '', o.name));
         if (o.sub) c.appendChild(el('small', '', o.sub));
+        if (o.tags) {
+          const t = el('div', 'p-tags');
+          for (const s of o.tags) t.appendChild(el('span', '', s));
+          c.appendChild(t);
+        }
         const act = () => { if (o.off) { UI.peek = o.id; showDetail(slot, o.id); } else { UI.peek = null; choose(slot, o.id); } };
         c.onclick = act;
         c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } };
@@ -487,8 +557,66 @@ function showDetail(slot, id) {
   const d = $('#pdetail');
   cancelAnimationFrame(famPreviewRAF);
   d.replaceChildren();
-  if (!id) { d.appendChild(el('div', 'note', 'nothing equipped in this slot')); return; }
+  if (!id) {
+    d.appendChild(el('div', 'note', slot === 'class'
+      ? 'No class: this loadout was picked by hand, so nothing balances it. Pick a class to play a balanced one.'
+      : 'nothing equipped in this slot'));
+    return;
+  }
   const hero = el('div', 'hero');
+
+  if (slot === 'class') {
+    const k = classOf(id);
+    if (!k) return;
+    const fam = famOf(k.weapon);
+    const M = k.measured, T = k.terms;
+    d.appendChild(el('h3', '', k.name));
+    d.appendChild(el('div', 'pid', `${k.archetype} · our own class · weapon family ${k.weapon} (${M.family})`));
+    if (fam) {
+      const cvs = el('canvas'); cvs.width = 576; cvs.height = 300;
+      hero.appendChild(cvs); d.appendChild(hero);
+      previewFamilyMesh(cvs, fam, { pad: 10 });
+    }
+    d.appendChild(el('div', 'note', k.tagline));
+    d.appendChild(kv([
+      ['Weapon', `${famName(fam)} — ${M.movesKeyed} moves on a key`],
+      ['Thrown', `${itemName(k.ranged)} — ${M.rangedCast.dmgMax} of a health bar`],
+      ['Spell', `${itemName(k.magic)} — ${M.magicCast.dmgMax} of a health bar`],
+      ['Look', `${itemName(k.helm)} · ${itemName(k.armor)} (yours to change)`],
+    ]));
+    // the nine axes this class is balanced on, as the builder ranked them
+    const AXIS = [['reachStillMed', 'Reach'], ['startupMed', 'Startup'], ['totalMed', 'Recovery'],
+      ['dmgEffMax', 'Best strike'], ['dpmEffMed', 'Damage per move'], ['dpsMed', 'Pressure'],
+      ['rangedCast', 'Thrown weapon'], ['magicCast', 'Spell'], ['chargeSpeed', 'Charge']];
+    const bars = el('div', 'bars');
+    for (const [axis, label] of AXIS) {
+      const v = (M.rosterRank || {})[axis];
+      if (v == null) continue;
+      const row = el('div', 'b' + (v <= 0.25 ? ' low' : ''));
+      row.appendChild(el('span', '', label));
+      const i = el('i');
+      i.style.setProperty('--w', `${Math.round(v * 100)}%`);
+      row.appendChild(i);
+      row.appendChild(el('em', '', v >= 0.75 ? 'high' : v <= 0.25 ? 'low' : 'mid'));
+      bars.appendChild(row);
+    }
+    d.appendChild(bars);
+    d.appendChild(kv([
+      ['Reach', `${M.reachMed} units (its longest move ${M.reachMax})`],
+      ['Startup', `${M.startupMs} ms to the first hit, ${M.recoveryMs} ms of animation`],
+      ['Strike', `${M.dmgMed} typical, ${M.dmgMax} best, ${M.dmgHeadMax} to the head`],
+      ['Multi-hit', M.multiHitMoves ? `${M.multiHitMoves} moves hit more than once (up to ${M.maxHitsInMove})` : 'none'],
+      ['Own objects', M.ownObjects ? `${M.ownObjects} created by its own moves, up to ${M.ownObjectDmg}` : 'none'],
+      ['Blocked hits', `${(T.blockedDamage * 100).toFixed(1)}% gets through`],
+      ['Critical', `${(T.criticalChance * 100).toFixed(0)}% of hits, x${T.criticalDamage.toFixed(2)}`],
+      ['Magic charge', `starts at ${T.startingCharge}, +${T.chargePerHitTaken.toFixed(2)}x when hit, +${T.chargePerHitDealt.toFixed(2)}x when hitting`],
+    ]));
+    d.appendChild(el('div', 'note', k.why));
+    d.appendChild(el('div', 'note', 'Ours: that classes exist, these eight, and the numbers in each one\'s attribute vector. '
+      + 'The game\'s: every family, item, move, clip and mesh a class names, the attribute keys and the way they are '
+      + 'written over the equipped items\' own sum, and every measured number above.'));
+    return;
+  }
 
   if (slot === 'weapon') {
     const fam = famOf(id);
@@ -778,18 +906,30 @@ function renderLobby(m) {
   // the server's echo is the truth: a click it refused must not stay on screen
   const r = meRow();
   if (r) for (const k of ['weapon', 'ranged', 'magic', 'helm', 'armor']) if (LOCAL[k] && r[k] === LOCAL[k]) delete LOCAL[k];
+  // the class too: `null` is a real echo (the server dropped it when a slot was picked by hand)
+  if (r && 'cls' in LOCAL && (r.cls || null) === LOCAL.cls) delete LOCAL.cls;
   if (UI.ready) { paint(); return; }
   if (lobbyBoot) return;
-  lobbyBoot = Promise.all([loadFamilies(), ARM.load(), loadModels(), loadHitboxes(), loadNames(), loadPracticeList()]).then(() => {
+  lobbyBoot = Promise.all([loadFamilies(), ARM.load(), loadModels(), loadHitboxes(), loadNames(), loadPracticeList(), loadClasses()]).then(() => {
     // the practice tab opens on the first boss of the file (the Lynx)
     if (!UI.practice) { const first = (PRACTICE.fighters || []).find((f) => f.kind === 'boss') || (PRACTICE.fighters || [])[0]; UI.practice = first ? first.id : null; }
     const data = ARM.data;
     ITEMS = new Map();
     for (const list of [data.weapons, data.ranged, data.magic, data.helms, data.armors]) for (const it of (list || [])) if (!ITEMS.has(it.name)) ITEMS.set(it.name, it);
     MOVES = new Map((data.moves || []).map((mv) => [mv.name, mv]));
-    if (!weapon || famOf(weapon)?.playable === false) {
+    // OURS: a new tab starts on a class, not on a hand-picked weapon -- the server seats the
+    // first class itself, so this only has to agree with it. With no roster (classes.json
+    // missing), it falls back to the first playable family the way it always did.
+    const first = classList()[0];
+    if (first) {
+      myClass = (meRow() || {}).cls || first.id;
+      weapon = (classOf(myClass) || first).weapon;
+      myWeapon = weapon;
+      UI.slot = 'class';
+    } else if (!weapon || famOf(weapon)?.playable === false) {
       weapon = (FAMILIES.find((x) => x.playable !== false) || FAMILIES[0]).id;
       myWeapon = weapon;
+      UI.slot = 'weapon';
       send({ t: 'weapon', id: weapon });
     }
     UI.ready = true;

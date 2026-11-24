@@ -17,6 +17,9 @@ const input = { left: 0, right: 0, up: 0, down: 0, punch: 0, kick: 0, block: 0, 
 let ws = null, me = 'p1', snap = null, meta = null, playing = false, weapon = null, myName = '';
 // what to re-send after a reconnect: the socket can be closed by the host at its max duration
 let myWeapon = null, myGear = null, myRoundSeconds = 60;
+// OURS: the class this tab picked (pvp/data/classes.json). It is said LAST on a reconnect, so it
+// overwrites the five loadout keys the lines above restore -- the class is what the player chose.
+let myClass = null;
 const clipCache = new Map();
 let running = false;
 
@@ -91,6 +94,7 @@ function connect(handover) {
     if (arenaPick && arenaChosen) say({ t: 'arena', id: arenaPick });
     if (myWeapon) say({ t: 'weapon', id: myWeapon });
     if (myGear) say({ t: 'gear', ...myGear });
+    if (myClass) say({ t: 'class', id: myClass });
     if (myRoundSeconds !== 60) say({ t: 'timer', seconds: myRoundSeconds });
     if (myRoom) { roomPending = true; say({ t: 'room', op: 'join', code: myRoom, restore: true }); }
     // the address bar carries the lobby's code while this tab is in it (lobby.js), so a reloaded

@@ -119,7 +119,12 @@
 
   /* ---- loadout builder ---- */
   .builder { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .slots { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); background:var(--inset); border-bottom:1px solid var(--line); }
+  .slots { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); background:var(--inset); border-bottom:1px solid var(--line); }
+  .slot[data-slot="class"] .s-lab { color:var(--gold); }
+  .slot.custom { background:#0e1014; }
+  .slot.custom .s-lab { color:#7d8192; }
+  .slot.custom.on { background:var(--panel); }
+  .slot.first-custom { border-left:2px solid #2a2d38; }
   .slot[data-slot="practice"] .s-lab { color:var(--ember); }
   .slot[data-slot="practice"].on { border-bottom-color:var(--ember); }
   .slot { all:unset; box-sizing:border-box; cursor:pointer; display:grid; grid-template-columns:44px minmax(0,1fr); grid-template-rows:auto auto;
@@ -164,6 +169,19 @@
   .pc.text .p-art { display:none; }
   .pc.text { padding:10px 8px; }
   .pempty { grid-column:1 / -1; color:var(--dim); padding:30px 0; text-align:center; }
+  /* class cards (OURS: the game has no classes, so there is nothing to copy) */
+  .pc.cls { padding:9px 8px 8px; }
+  .pc.cls .p-arch { font:400 10px/1 var(--display); letter-spacing:.07em; color:var(--gold); }
+  .pc.cls .p-tags { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+  .pc.cls .p-tags span { background:#1b1e26; border:1px solid #2b2f3c; border-radius:10px; padding:1px 6px; font-size:9.5px; color:#b9bcc8; }
+  .clsnote { grid-column:1 / -1; margin:4px 0 2px; color:var(--dim); font-size:11.5px; line-height:1.45; }
+  .clsnote b { color:#d6c9a4; font-weight:600; }
+  .bars { display:grid; gap:5px; margin-top:10px; }
+  .bars .b { display:grid; grid-template-columns:96px minmax(0,1fr) 40px; gap:8px; align-items:center; font-size:11px; color:var(--dim); }
+  .bars .b i { height:7px; border-radius:4px; background:#1d202a; display:block; position:relative; overflow:hidden; }
+  .bars .b i::after { content:""; position:absolute; inset:0 auto 0 0; width:var(--w,0%); background:var(--gold); border-radius:4px; }
+  .bars .b.low i::after { background:#6b7183; }
+  .bars .b em { font-style:normal; color:#cfd1da; text-align:right; font-variant-numeric:tabular-nums; }
   .pdetail { border-left:1px solid var(--line); background:var(--panel-2); padding:14px 16px; min-width:0; max-height:536px; overflow:auto; }
   .pdetail h3 { font:400 20px/1.15 var(--display); color:var(--gold); margin:0; overflow-wrap:anywhere; }
   .pdetail .pid { font:11px/1.4 ui-monospace,Consolas,monospace; color:var(--dim); overflow-wrap:anywhere; margin-top:2px; }
