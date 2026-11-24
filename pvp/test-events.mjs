@@ -118,7 +118,11 @@ console.log('\nB — the harpoon: hit, pulled in, knocked down, struck');
   ok(pulled > 200, `the grab pulls the victim across the arena (${pulled.toFixed(0)} units in 20 ticks; it is the clip's own root motion)`);
   // the strike is unarmed: 0.25 x 2^((0 - 12)/10); the two before it are the file's 0.05 and 0.01 on the body
   const want = 1 - damageOf('TitansHarpoonFly') - damageOf('TitansHarpoonPlayerStart') - damageOf('TitansHarpoonPlayerStrike') * 2 ** (-12 / 10);
-  ok(near(r.b.hp, want, 1e-3), `health after the chain: ${r.b.hp.toFixed(4)} = 1 - 0.05 - 0.01 - 0.25 x 0.4353 (${want.toFixed(4)})`);
+  // OURS (sim.mjs normalizeSize): the Titan's own caster clips are 1.31x a fighter and are played
+  // at a fighter's size, so PlayerStart's 0.01 can now reach the head (weapon->head 1.6245, the
+  // engine's own factor) instead of the body; either bone is the engine's rule
+  const wantHead = want - damageOf('TitansHarpoonPlayerStart') * (1.6245 - 1);
+  ok(near(r.b.hp, want, 1e-3) || near(r.b.hp, wantHead, 1e-3), `health after the chain: ${r.b.hp.toFixed(4)} = 1 - 0.05 - 0.01 (x1 body | x1.6245 head) - 0.25 x 0.4353 (${want.toFixed(4)} | ${wantHead.toFixed(4)})`);
   // without the item the key does nothing: the cast is locked to the item's SubType
   const F0 = duel('Fists', 450, null, null);
   const r0 = run(F0, 40, tap('ranged'));

@@ -1,0 +1,4 @@
+# This deployment serves the game's own art and audio so the client can draw a fight. None of it
+# is ours to hand to a crawler, an archive or a dataset, so nothing here is for indexing.
+User-agent: *
+Disallow: /

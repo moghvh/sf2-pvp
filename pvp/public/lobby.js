@@ -162,6 +162,10 @@ const packRank = (p) => (!p ? -1 : /^ZONE_/.test(p) ? parseFloat(p.replace(/^ZON
 /** The cards a slot offers: { id, name, sub, group, rank, off, why }. */
 function optionsFor(slot) {
   const m = LOBBY;
+  // gear only the game's opponents wear (ShopHide in list.xml + worn by a stages.xml <Warrior>;
+  // the server's `oppOnly`): its own group, after the shop's items
+  const opp = new Set(m.oppOnly || []);
+  const OPP = 'Opponents only (not sold in the game)';
   if (slot === 'weapon') {
     return (FAMILIES || []).map((fam) => {
       const off = fam.playable === false;
@@ -180,10 +184,10 @@ function optionsFor(slot) {
       return {
         id: fam.id, name: famName(fam), off, why,
         sub: off ? why : `${fam.moves.length} move${fam.moves.length === 1 ? '' : 's'}${set ? '' : ` · ${fam.itemCount} item${fam.itemCount === 1 ? '' : 's'}`}`,
-        group: !off ? (set ? 'Boss and special sets' : 'Weapons')
+        group: !off ? (set ? 'Boss and special sets' : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? OPP : 'Weapons')
           : dropped ? 'Not in the shipped game (its loader drops them)'
             : fam.reason === 'no-key' ? 'Objects and effects (no key starts them)' : 'Not playable',
-        rank: !off ? (set ? 1 : 0) : dropped ? 3 : 2,
+        rank: !off ? (set ? 1.5 : (fam.items || []).length && fam.items.every((i) => opp.has(i)) ? 1 : 0) : dropped ? 3 : 2,
         find: `${fam.id} ${fam.label} ${(fam.items || []).map(itemName).join(' ')}`,
         first: fam.id === 'Fists' ? 0 : 1,
       };
@@ -194,7 +198,7 @@ function optionsFor(slot) {
     return list.map(([id, move]) => {
       const it = ITEMS.get(id) || {};
       const sub = it.subType ? spaced(it.subType) : '';
-      return { id, name: itemName(id), sub: moveName(move), group: slot === 'ranged' ? (sub || 'Other') : 'Magic', rank: 0, find: `${id} ${move} ${sub}` };
+      return { id, name: itemName(id), sub: moveName(move), group: opp.has(id) ? OPP : slot === 'ranged' ? (sub || 'Other') : 'Magic', rank: opp.has(id) ? 9 : 0, find: `${id} ${move} ${sub}` };
     });
   }
   if (slot === 'helm' || slot === 'armor') {
@@ -204,7 +208,7 @@ function optionsFor(slot) {
       const pack = (it.attrs && it.attrs.PackLabel) || '';
       const stat = (it.stats || []).find((s) => s[2] != null);
       return { id, name: itemName(id), sub: stat ? `${stat[1]} ${stat[2]}` : (it.level != null ? `level ${it.level}` : model),
-        group: packName(pack), rank: packRank(pack), find: `${id} ${model}`, level: it.level == null ? 999 : it.level };
+        group: opp.has(id) ? OPP : packName(pack), rank: opp.has(id) ? 999 : packRank(pack), find: `${id} ${model}`, level: it.level == null ? 999 : it.level };
     });
   }
   if (slot === 'practice') {
@@ -286,6 +290,13 @@ function renderYou() {
   const room = LOBBY && LOBBY.room;
   $('#readyHint').textContent = r.ready ? (others.length ? 'the fight starts when they are ready' : room ? 'waiting for your opponent to join with the code' : 'nobody else is here yet')
     : others.some((p) => p.ready) ? 'your opponent is ready' : '';
+  {
+    // a private room plays its host's round length (game.mjs roundSecondsOf)
+    const host = room && LOBBY.players.find((p) => p.id === room.host);
+    const sel = $('#roundTime');
+    if (sel && document.activeElement !== sel && r.roundSeconds && String(r.roundSeconds) !== sel.value) sel.value = String(r.roundSeconds);
+    $('#roundHint').textContent = host && host.id !== LOBBY.you ? `host plays ${host.roundSeconds || 60} s` : '';
+  }
   if (key === UI.youKey) return;
   UI.youKey = key;
   $('#kitYou').replaceChildren(kitRows(r, pk));
@@ -825,6 +836,8 @@ $('#ready').onclick = () => {
   playSound('snd_click_2', 0.6);
   send({ t: 'ready', on });
 };
+// OURS: round length (the file's own is 60 s). A private room plays its host's choice.
+$('#roundTime').onchange = (e) => { myRoundSeconds = Number(e.target.value) || 60; send({ t: 'timer', seconds: myRoundSeconds }); };
 $('#name').oninput = (e) => { myName = e.target.value; send({ t: 'join', name: myName }); };
 // leaving a practice fight: its button, or Esc (a fight between two players has no such exit)
 const quitPractice = () => { if (playing && meta && meta.practice) send({ t: 'quit' }); };

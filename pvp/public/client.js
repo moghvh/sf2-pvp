@@ -16,7 +16,7 @@ const actionFor = e => KEYMAP[e.key] || KEYMAP[e.key.toLowerCase()];
 const input = { left: 0, right: 0, up: 0, down: 0, punch: 0, kick: 0, block: 0, ranged: 0, magic: 0, super: 0, ability: 0, raid: 0 };
 let ws = null, me = 'p1', snap = null, meta = null, playing = false, weapon = null, myName = '';
 // what to re-send after a reconnect: the socket can be closed by the host at its max duration
-let myWeapon = null, myGear = null;
+let myWeapon = null, myGear = null, myRoundSeconds = 60;
 const clipCache = new Map();
 let running = false;
 
@@ -83,6 +83,7 @@ function connect(handover) {
     if (arenaPick && arenaChosen) say({ t: 'arena', id: arenaPick });
     if (myWeapon) say({ t: 'weapon', id: myWeapon });
     if (myGear) say({ t: 'gear', ...myGear });
+    if (myRoundSeconds !== 60) say({ t: 'timer', seconds: myRoundSeconds });
     if (myRoom) { roomPending = true; say({ t: 'room', op: 'join', code: myRoom, restore: true }); }
     // the address bar carries the lobby's code while this tab is in it (lobby.js), so a reloaded
     // tab comes back with `?lobby=CODE`; `sf2room` (this tab's own storage) says it was this
@@ -428,7 +429,26 @@ function takeNodes(s) {
   for (const pid of ['p1', 'p2']) if (s[pid] && s[pid].n) WN[pid] = put(WN[pid], s[pid].n);
   const seen = new Set();
   for (const pr of s.projectiles || []) { if (!pr.n) continue; seen.add(pr.id); PWN.set(pr.id, put(PWN.get(pr.id), pr.n)); }
-  for (const id of [...PWN.keys()]) if (!seen.has(id)) { PWN.delete(id); PRIG.delete(id); }
+  for (const id of [...PWN.keys()]) if (!seen.has(id)) { PLAST.set(id, { w: PWN.get(id), skel: PSKEL.get(id) }); PWN.delete(id); PRIG.delete(id); }
+  for (const pr of s.projectiles || []) if (pr.skel) PSKEL.set(pr.id, pr.skel);
+  if (PLAST.size > 64) for (const id of [...PLAST.keys()].slice(0, PLAST.size - 64)) PLAST.delete(id);
+}
+const PSKEL = new Map();   // created object id -> its skeleton model id
+const PLAST = new Map();   // an object gone this tick -> its last nodes (a Strike effect is placed there)
+/** Where a cue's `<Position Part>` is on a created object: the named node of its own skeleton
+ *  (`Magic-Node2_1`, `Ranged-Node2_1`, rig.json names); a name only an item model has
+ *  (`Fireball-MacroNode2`) -> the centre of the object's nodes. Was: the object's root x/y, which
+ *  drew every spell / bullet effect off the ball itself. */
+function projPartScreen(id, part, fallback, cx) {
+  const rec = PWN.has(id) ? { w: PWN.get(id), skel: PSKEL.get(id) } : PLAST.get(id);
+  if (!rec || !rec.w || !rec.w.cur.length) return toScreen(fallback.x, fallback.y, cx);
+  const cur = rec.w.cur, m = RIGDATA && rec.skel && RIGDATA.models[rec.skel];
+  let i = -1;
+  if (m && m.names && part) for (const [k, v] of Object.entries(m.names)) if (v === part || v === part.replace(/_2$/, '_1')) { i = Number(k); break; }
+  if (i >= 0 && i * 3 + 1 < cur.length) return toScreen(cur[i * 3], cur[i * 3 + 1], cx);
+  let sx = 0, sy = 0; const n = Math.min(4, cur.length / 3);
+  for (let k = 0; k < n; k++) { sx += cur[k * 3]; sy += cur[k * 3 + 1]; }
+  return toScreen(sx / n, sy / n, cx);
 }
 /** 30 Hz snapshots drawn at display rate: the straight line between the last two. */
 function lerpNodes(w, out) {
@@ -772,9 +792,9 @@ function tickEffects(s) {
     // at or before it (a `Frame="1"` cue on a move that starts at FirstFrame 2)
     const prev = PROJPOS.get(p.id);
     const last = prev && prev.move === p.move && (p.frame || 0) >= prev.f ? prev.f : -1;
-    const sp = toScreen(p.x, p.y, cx);
     for (const c of EFFC.moves[p.move] || []) {
       if (!c.ev && c.f > last && c.f <= (p.frame || 0) && cueOk(c, p.owner)) {
+        const sp = projPartScreen(p.id, c.part, p, cx);
         if (spawnEffect(c, { x: sp[0] + (c.shift || [0, 0])[0] * p.facing, y: sp[1] + (c.shift || [0, 0])[1] }, null)) {
           const e = effects[effects.length - 1];
           e.proj = p.id; e.facing = p.facing;
@@ -794,7 +814,7 @@ function tickEffects(s) {
       if (c.ev !== kind || !cueOk(c, owner)) continue;
       const sh = c.shift || [0, 0];
       if (ev.proj) {
-        const sp = toScreen(ev.proj.x, ev.proj.y, cx);
+        const sp = projPartScreen(ev.proj.id, c.part, ev.proj, cx);
         // an object that lives on (a lit bomb's fuse starts at the end of its first phase) keeps
         // the cue's own Follow / Looped and carries the effect; one that is gone leaves it there
         const alive = live.has(ev.proj.id);
@@ -833,7 +853,7 @@ function drawEffects(s, cx) {
     // and a looped one ends with it
     if (e.proj !== undefined && (e.follow || e.loop)) {
       const p = s && (s.projectiles || []).find((q) => q.id === e.proj);
-      if (p) { const at = toScreen(p.x, p.y, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] + e.shift[1]; e.facing = p.facing; }
+      if (p) { const at = projPartScreen(p.id, e.part, p, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] + e.shift[1]; e.facing = p.facing; }
       // the effect belongs to the object (`<Position Player="Me" … Follow="1">`): it goes with it
       else { e.dead = true; continue; }
     }
@@ -1192,6 +1212,15 @@ function camClamp(cx) {
  *  engine applies a single `Qo` to every layer (`Xsb(this.Qo*b.kp)`), so a pass that computed
  *  its own unclamped centre would slide against the others at the stage edges. */
 const camCentre = (s) => { const t = s || snap; return t && meta ? camClamp((t.p1.x + t.p2.x) / 2) : 0; };
+/** a fighter's skeleton node (rig.json name) on screen, from the wire nodes */
+function nodeAt(pid, name, cx) {
+  const w = WN[pid], names = RIGDATA && RIGDATA.models && RIGDATA.models.mdl_skeleton && RIGDATA.models.mdl_skeleton.names;
+  if (!w || !names) return null;
+  const k = Object.keys(names).find((i) => names[i] === name);
+  if (k == null) return null;
+  const [x, y] = toScreen(w.cur[k * 3], w.cur[k * 3 + 1], cx);
+  return { x, y };
+}
 function toScreen(wx, wy, cx) {
   const s = viewScale();
   return [cv.width / 2 + (wx - cx) * s, groundScreenY() - wy * s];
@@ -1270,7 +1299,15 @@ function render() {
     evCarry = [];
     for (const ev of evs) {
       const st = ev.pid === 'p1' ? snap.p1 : snap.p2;
-      const at = () => { const [x, y] = chestScreen(st, cx); return { x, y }; };
+      // the sim's own contact point (defender side of the capsule test); the chest only for a
+      // hit that had no bone contact (a scripted throw)
+      // OURS: a hit the file classes as a head hit (its interval's own <Defense Type="HeadDefense">,
+      // e.g. FrontKick) can touch the torso capsule first; the HEAD HIT callout then needs the
+      // spark on the head, so a head-class hit is drawn at the victim's NHead node.
+      const at = () => {
+        if (ev.t === 'hit' && ev.def === 'HeadDefense') { const h = nodeAt(ev.pid, 'NHead', cx); if (h) return h; }
+        const [x, y] = ev.at ? toScreen(ev.at[0], ev.at[1], cx) : chestScreen(st, cx); return { x, y };
+      };
       if (ev.t === 'hit') {
         sparks.push({ ...at(), kind: 'hit', born: now, scale: 1 });
         // a head hit is one of the game's own announced hit classes: its FightUI callout and
@@ -2251,7 +2288,20 @@ window.SF2ARENA = {
   // the bone geometry the sim tests hits with, and the gear models being drawn from
   get soundLog() { return soundLog.slice(); },
   get soundBlocked() { return soundBlocked; },
-  get effects() { return effects.map((e) => ({ seq: e.seq, age: (snap ? snap.tick : 0) - e.born })); },
+  get effects() { return effects.map((e) => ({ seq: e.seq, age: (snap ? snap.tick : 0) - e.born, x: e.x, y: e.y, proj: e.proj, part: e.part })); },
+  projScreen: (id, part) => (snap ? projPartScreen(id, part, (snap.projectiles || []).find((p) => p.id === id) || { x: 0, y: 0 }, camCentre(snap)) : null),
+  send: (o) => send(o),
+  get sparks() { return sparks.map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), kind: s.kind })); },
+  // screen position of a fighter's skeleton node by rig name (verification helper)
+  nodeScreen: (pid, name) => {
+    const w = WN[pid], names = RIGDATA && RIGDATA.models.mdl_skeleton.names;
+    if (!w || !names || !snap) return null;
+    const k = Object.keys(names).find((i) => names[i] === name);
+    if (k == null) return null;
+    const [x, y] = toScreen(w.cur[k * 3], w.cur[k * 3 + 1], camCentre(snap));
+    return { x: Math.round(x), y: Math.round(y) };
+  },
+  get snap() { return snap; },
   get modelColour() { return modelColor(); },
   shapeItems: () => SHAPES.p1.map((sh) => ({ item: sh.item || null, weapon: sh.weapon })),
   setEffects: (on) => { DRAW_EFFECTS = !!on; },

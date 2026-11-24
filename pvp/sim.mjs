@@ -62,12 +62,57 @@ const ragdollData = () => {
   }
   return RAGDOLL;
 };
-const diskPose = (name) => {
+export const diskPose = (name) => {
   for (const dir of ['extracted/web-animations', 'extracted/apk-assets/animations']) {
     try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', dir, name + '.json'), 'utf8')); } catch { /* next bank */ }
   }
   return null;
 };
+
+// OURS (user rule: a boss weapon or ability must not make the fighter bigger). The Titan's
+// 26 clips (titan_*, titans_harpoon_player_*, mind_throw_1/2) are authored on a skeleton
+// 1.30-1.32x mdl_skeleton (median segment-length ratio against stance_idle, frame 0). Such a
+// clip is scaled back to the player's own skeleton about its first frame's Pelvis x and its
+// lowest node, so the feet stay on the floor and the fighter keeps its size. Every other clip
+// sits within 3 % of 1.0 and is untouched.
+let SIZE_REF;
+const segLen = (fr, i, j) => Math.hypot(fr[i][0] - fr[j][0], fr[i][1] - fr[j][1], fr[i][2] - fr[j][2]);
+export function sizeRatio(j) {
+  if (!j || j.nodeCount !== 67 || !j.frames || j.frames.length < 67) return 1;
+  if (SIZE_REF === undefined) SIZE_REF = diskPose('stance_idle') || null;
+  if (!SIZE_REF) return 1;
+  const a = SIZE_REF.frames.slice(0, 67), b = j.frames.slice(0, 67), rs = [];
+  for (let i = 1; i < 67; i++) { const L = segLen(a, i - 1, i); if (L > 5) rs.push(segLen(b, i - 1, i) / L); }
+  rs.sort((x, y) => x - y);
+  return rs[rs.length >> 1] || 1;
+}
+// the node a clip's moves align on (`<Align><Pivot Object="Nodes" Part=…>`): shrinking each frame
+// about it keeps the file's own travel (a step's dx) exact
+let PIVOT_OF = null;
+const pivotOf = (clip) => {
+  if (!PIVOT_OF) {
+    PIVOT_OF = new Map();
+    const mm = animMeta(); const x = mm.moves || mm;
+    for (const v of Object.values(x)) if (v && v.clip && !PIVOT_OF.has(v.clip) && v.align && v.align.pObj === 'Nodes' && v.align.pPart) PIVOT_OF.set(v.clip, v.align.pPart);
+  }
+  return PIVOT_OF.get(clip) || 'Pelvis';
+};
+export function normalizeSize(j, clipName, idxOf) {
+  const r = sizeRatio(j);
+  if (!(r > 1.15)) return j;
+  const k = 1 / r, f0 = j.frames.slice(0, 67);
+  // skeleton node names (NHeel_2) are not the clip's names (by index, AGENTS stage 12): idxOf maps them
+  const piv = idxOf ? idxOf(pivotOf(clipName || j.name)) : -1;
+  const pi = piv >= 0 ? piv : (j.nodeOrder || []).indexOf('Pelvis');
+  const ox = pi >= 0 ? f0[pi][0] : 0, oy = Math.max(...f0.map((p) => p[1]));
+  // each frame is shrunk about that frame's own pivot node x (else Pelvis), so the clip's root motion (a step's
+  // travel, a lunge) is the file's and only the body's size changes; y about the stance's feet
+  const n = j.nodeCount || 67;
+  return { ...j, sizeNormalized: r, frames: j.frames.map((p, i) => {
+    const px = pi >= 0 ? j.frames[i - (i % n) + pi][0] : ox;
+    return [px + (p[0] - px) * k, oy + (p[1] - oy) * k, p[2] * k];
+  }) };
+}
 // internal_settings.xml `<FrameRate Value="60"/>`: engine ticks per simulation tick
 export const ENGINE_HZ = 60;
 // world nodes go on the wire as int16 in 1/8 units
@@ -111,6 +156,9 @@ const takeHealth = (hp, dmg) => { const h = hp - dmg; return h < PHYS.healthEpsi
 // `a.l5=u.J(b.attributes.get("RoundTime"),60)` -- two rounds to win, 60 seconds a round.
 export const ROUNDS_TO_WIN = 2;
 export const ROUND_SECONDS = 60;
+// OURS: a lobby may ask for a longer (or shorter) round than the file's 60 s
+export const ROUND_SECONDS_MIN = 15, ROUND_SECONDS_MAX = 600;
+export const clampRoundSeconds = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 ? Math.max(ROUND_SECONDS_MIN, Math.min(ROUND_SECONDS_MAX, n)) : ROUND_SECONDS; };
 // The round's own stages (`Battle.x3 / uOa / Jm / Vlb`, sf2.js @212900, and the banner class
 // `Jr` @1054063): `Uca()` shows ROUND n for `this.tu(1.666)` seconds; its end starts the
 // "StartStance" stage (`JF(1)`: every move with <RoundStageStart Name="StartStance"/> whose
@@ -383,8 +431,15 @@ class Fighter {
 }
 
 // ---------------------------------------------------------------- the fight
+/** OURS: where the impact sprite is drawn -- the defender-side point of the capsule contact
+ *  (`hz`), world units, y up. A hit with no bone contact (a scripted throw) carries none. */
+function contactAt(opts) {
+  const c = opts.contact || opts.struck;
+  return c && c.point ? { at: [Math.round(c.point.px * 10) / 10, Math.round(c.point.py * 10) / 10] } : {};
+}
+
 export class Fight {
-  constructor({ moveData, clips, weapons, names, gear, hitboxes = null, combat = null, poses = null, models = null, locomotion = null, attrs = null, rngSeed = 0, walls = null, items = null, stages = false, start = null,
+  constructor({ moveData, clips, weapons, names, gear, hitboxes = null, combat = null, poses = null, models = null, locomotion = null, attrs = null, rngSeed = 0, roundSeconds = ROUND_SECONDS, walls = null, items = null, stages = false, start = null,
     perks = null, freeBullets = true, pvp = true, bots = null, rechargeMagic = null }) {
     // `perks`: per player, the perk names a stages.xml <Warrior> carries (a practice boss).
     // `freeBullets`: the engine's own `v.Aba` switch (sf2.js @383560: `!v.Aba || (this.zsa = 0)`)
@@ -450,7 +505,7 @@ export class Fight {
     this.eclips = new Map();
     const clipOf = (name) => {
       if (!this.eclips.has(name)) {
-        const j = (this.poses && this.poses(name)) || diskPose(name);
+        const j = normalizeSize((this.poses && this.poses(name)) || diskPose(name), name, (n) => (this.skels && this.skels.Skeleton ? this.skels.Skeleton.idx(n) : -1));
         this.eclips.set(name, j && j.frames && j.frameCount ? engineClip(j) : null);
       }
       return this.eclips.get(name);
@@ -557,7 +612,8 @@ export class Fight {
     }
     this.weapons = weapons;
     this.round = 1;
-    this.roundTime = ROUND_SECONDS * TICK_HZ;
+    this.roundSeconds = clampRoundSeconds(roundSeconds);
+    this.roundTime = this.roundSeconds * TICK_HZ;
     this.phase = 'fight'; // fight | roundEnd | matchEnd
     this.events = [];
     this.tick = 0;
@@ -735,7 +791,13 @@ export class Fight {
     const objects = (this.moveData.spawnPlan && this.moveData.spawnPlan[playerMove.name])
       || ((this.moveData.missiles && this.moveData.missiles[playerMove.name]) || [])
         .filter((n) => !/Wall$/.test(n)).map((name) => ({ frame: 0, phases: [name] }));
-    for (const obj of objects) f.pending.push({ obj, frame: obj.frame || 0, by: playerMove });
+    for (const obj of objects) {
+      // Each <CreatePlayer> has its own Frame: the blaster's gun is made on 4, its bullet
+      // (`BlasterEffect`) on 20. One plan entry can hold several; queue each name at its own frame.
+      const fr = [...new Set((obj.creates || []).map((c) => c.frame ?? obj.frame ?? 0))];
+      if (fr.length > 1) for (const k of fr) f.pending.push({ obj, frame: k, by: playerMove, only: obj.creates.filter((c) => (c.frame ?? 0) === k).map((c) => c.name) });
+      else f.pending.push({ obj, frame: obj.frame || 0, by: playerMove });
+    }
   }
 
   /** The phases of one created object that belong to the item this fighter carries: a phase's
@@ -778,6 +840,7 @@ export class Fight {
     const names = [...new Set(births.map(nameOf).filter(Boolean))];
     if (names.length > 1) {
       for (const nm of names) {
+        if (pend.only && !pend.only.includes(nm)) continue;
         const info = (pend.obj.creates || []).find((c) => c.name === nm) || {};
         this.birthOne(f, pid, { ...pend, obj: { ...pend.obj, ...info } }, all.filter((p) => !nameOf(p) || nameOf(p) === nm), nm);
       }
@@ -2229,7 +2292,7 @@ export class Fight {
       this.events.push({ t: 'block', pid: otherId, by: pid, hit: h, dmg: Math.round(dmg * 100), move: moveName, ...(falls ? { physical: true } : {}),
         def: this.defenceAttr(atk, opts.contact, true), mul: blockMul,
         fac: this.damageFactor(atk, opts.contact, true, src, defender), crit: false, critMul: 1, blockMul,
-        ...(opts.proj ? { proj: opts.proj } : {}) });
+        ...(opts.proj ? { proj: opts.proj } : {}), ...contactAt(opts) });
       return;
     }
 
@@ -2287,7 +2350,7 @@ export class Fight {
       def: this.defenceAttr(atk, opts.contact, blocked),
       fac: this.damageFactor(atk, opts.contact, blocked, src, defender),
       crit: critical, critMul, blockMul, ...(physical ? { physical: true } : {}),
-      head: (atk.bodyPart || opts.contact?.body?.part) === 'Head', ...(opts.proj ? { proj: opts.proj } : {}) });
+      head: (atk.bodyPart || opts.contact?.body?.part) === 'Head', ...(opts.proj ? { proj: opts.proj } : {}), ...contactAt(opts) });
   }
 
   /** The round is over (`Battle.Pob`, sf2.js @210300): a fighter is out of health, or the
@@ -2328,7 +2391,7 @@ export class Fight {
   nextRound() {
     const p1 = this.fighters.p1, p2 = this.fighters.p2;
     this.round++;
-    this.roundTime = ROUND_SECONDS * TICK_HZ;
+    this.roundTime = this.roundSeconds * TICK_HZ;
     // a round starts clean: a missile still in flight (or a half-finished two-tap) used to
     // carry into the next round and land on a fighter that had just been reset
     this.projectiles = [];

@@ -464,7 +464,17 @@ const ARM = (() => {
     let n = 0;
 
     if (tab === 'weapons') {
-      for (const w of data.weapons) {
+      // A "weapon" a <CreatePlayer><Item> hands to a created object (the blaster's bullet, the
+      // tonfa / saw skeletons, the mine) is not a weapon a fighter holds: listed after the rest,
+      // under its own heading (arsenal.json spawnPlan is the record of every such item).
+      const objItems = new Set();
+      for (const list of Object.values(data.spawnPlan || {})) for (const o of list) {
+        for (const c of [o, ...(o.creates || [])]) { if (c.item) objItems.add(c.item); if (c.skel) objItems.add(c.skel); for (const w of c.wear || []) objItems.add(w.item); }
+      }
+      const isObj = (w) => (objItems.has(w.name) && !/^WEAPON_/.test(w.name) && w.name !== 'Fists') || /^Skeleton/.test(w.name);
+      let headed = false;
+      for (const w of [...data.weapons.filter((x) => !isObj(x)), ...data.weapons.filter(isObj)]) {
+        if (isObj(w) && !headed && keep(w.name + ' ' + (w.subType || ''))) { headed = true; grid.insertAdjacentHTML('beforeend', '<div class="note" style="grid-column:1/-1">Items the game gives to created objects (bullets, thrown skeletons) — not held by a fighter</div>'); }
         if (!keep(w.name + ' ' + (w.subType || ''))) continue;
         n++;
         const el = weaponCellEl(w);

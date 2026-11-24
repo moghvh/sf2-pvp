@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { createFight, TICK_HZ, ROUNDS_TO_WIN } from './sim.mjs';
+import { createFight, TICK_HZ, ROUNDS_TO_WIN, ROUND_SECONDS, clampRoundSeconds } from './sim.mjs';
 import { loadGameData } from './families.mjs';
 import { loadPractice } from './practice.mjs';
 
@@ -21,6 +21,21 @@ const { arsenal, clips, FAMILIES, ORPHAN_FAMILIES, WEAPONS, moveData, gearFor, D
   hitboxes: HITBOXES, combat: COMBAT, locomotion: LOCOMOTION, poses: poseOf, attributesFor } = GAME;
 // the game's own opponents, for a practice fight against the computer (pvp/practice.mjs)
 const PRACTICE = loadPractice(GAME);
+// Gear only the game's opponents wear: list.xml marks it `ShopHide` and a stages.xml <Warrior>
+// (pvp/data/practice.json) carries it. The lobby files these under their own group so a boss's
+// body, head or weapon is not offered next to the shop's items. The defaults every fighter
+// starts in (users_default.xml: Body, Head, Fists) are not counted.
+const OPP_ONLY = (() => {
+  const worn = new Set();
+  let fighters = [];
+  try { fighters = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'practice.json'), 'utf8')).fighters || []; } catch { /* no practice table: no group */ }
+  for (const f of fighters) for (const k of ['weapon', 'armor', 'helm', 'ranged', 'magic']) if (typeof f[k] === 'string') worn.add(f[k]);
+  const out = [];
+  for (const k of ['weapons', 'ranged', 'magic', 'helms', 'armors']) for (const i of arsenal[k] || []) {
+    if (i.shopHide && worn.has(i.name) && !['Body', 'Head', 'Fists'].includes(i.name)) out.push(i.name);
+  }
+  return out;
+})();
 
 // The stages the APK can actually draw: every atlas of theirs is a Texture2D in the dump.
 // Parsed by pvp/tools/build-arenas.mjs out of the game's own <name>_params scene XML. A
@@ -358,10 +373,11 @@ export function attachGame(server, opts = {}) {
       // every helm and armor whose own mesh is in the game's model pack, with the model id the
       // client draws (`Armor="Body"` -> the mesh entry `mdl_body`)
       helmItems: gearList(arsenal.helms),
+      oppOnly: OPP_ONLY,
       armorItems: gearList(arsenal.armors),
       // only the players of this client's own lobby: its private room, or the public one
       players: lobbyMates(c).map(c => ({ id: c.id, name: c.name, weapon: c.weapon, ready: c.ready, inMatch: !!c.match,
-        ranged: c.ranged, magic: c.magic, stage: c.stage, helm: c.helm, armor: c.armor, body: bodyModel(c) })),
+        ranged: c.ranged, magic: c.magic, stage: c.stage, helm: c.helm, armor: c.armor, body: bodyModel(c), roundSeconds: c.roundSeconds })),
       room: (() => { const r = c && roomOf(c); return r ? { code: r.code, size: r.members.length, max: ROOM_MAX, host: r.host } : null; })(),
     };
   }
@@ -421,6 +437,11 @@ export function attachGame(server, opts = {}) {
     return own ? { ...body, weapon: own.model || null } : body;
   };
 
+  function roundSecondsOf(a, b) {
+    const r = a.room && rooms.get(a.room);
+    const host = r && [a, b].find((p) => p.id === r.host);
+    return clampRoundSeconds((host || a).roundSeconds);
+  }
   function startMatch(a, b, opts = {}) {
     const id = 'm' + nextId++;
     const bot = b.bot ? b : null;
@@ -435,6 +456,8 @@ export function attachGame(server, opts = {}) {
       fight: createFight({ moveData, clips, weapons: { p1: a.weapon, p2: b.weapon }, names: { p1: a.name, p2: b.name },
         gear: { p1: gearOf(a), p2: gearOf(b) },
         hitboxes: HITBOXES, combat: COMBAT, locomotion: LOCOMOTION, poses: poseOf,
+        // OURS: a private room plays its host's round length; otherwise the first player's
+        roundSeconds: roundSecondsOf(a, b),
         models: { p1: bodyOf(a), p2: bodyOf(b) },
         walls, items: { p1: itemsOf(a), p2: itemsOf(b) },
         // The magic rule is the game's: a cast asks for a bullet (`<Bullets Type="MagicBullet"
@@ -580,7 +603,7 @@ export function attachGame(server, opts = {}) {
     socket.setTimeout(SOCKET_IDLE_MS, () => socket.destroy());   // never completes a frame -> gone
 
     const c = { id: nextId++, name: 'Player', weapon: DEFAULT_WEAPON, ready: false, socket, match: null, room: null, badCodes: [], sid: null, openedAt: Date.now(), addr,
-      ranged: DEFAULT_GEAR.ranged, magic: DEFAULT_GEAR.magic, stage: DEFAULT_STAGE, stagePicked: false,
+      ranged: DEFAULT_GEAR.ranged, magic: DEFAULT_GEAR.magic, stage: DEFAULT_STAGE, stagePicked: false, roundSeconds: ROUND_SECONDS,
       helm: DEFAULT_GEAR.helm, armor: DEFAULT_GEAR.armor };
     clients.set(c.id, c);
 
@@ -669,6 +692,11 @@ export function attachGame(server, opts = {}) {
         if (arsenal.helms.some((i) => i.name === msg.helm && hasMesh(i.model))) c.helm = msg.helm;
         if (arsenal.armors.some((i) => i.name === msg.armor && hasMesh(i.model))) c.armor = msg.armor;
         broadcastLobby();
+        break;
+      }
+      case 'timer': {
+        // OURS: the round length this player asks for (15..600 s; the file's own is 60)
+        c.roundSeconds = clampRoundSeconds(msg.seconds); broadcastLobby();
         break;
       }
       case 'arena': {

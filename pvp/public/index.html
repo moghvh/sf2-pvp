@@ -234,6 +234,38 @@
   .tb.md { grid-column:span 3; width:66px; height:66px; }
   .tb.lg { grid-column:span 3; width:82px; height:82px; font-size:12px; border-color:var(--gold-dim); color:var(--gold); }
   .tb.on { background:var(--gold); color:#1a1408; border-color:var(--gold); }
+  /* The game's own fight buttons: apk textures/FightButtons.png (1024x2048), each rect from the
+     APK's sprite table (sprites.json, FightButtons.btn_*_normal / _action, JoystickContainer_*,
+     Joystick_*; Unity rects flipped to top-left). Which action "btn_charge" presses (super) and
+     where the buttons sit are OURS. */
+  .touch .tstick, .touch .tknob, .tb.art { background-color:transparent; border:0; border-radius:50%;
+     background-image:url(/apk/textures/FightButtons.png); background-repeat:no-repeat;
+     background-size:calc(var(--d) * 1024 / var(--sw)) calc(var(--d) * 2048 / var(--sh));
+     background-position:calc(var(--d) * var(--sx) / var(--sw) * -1) calc(var(--d) * var(--sy) / var(--sh) * -1); }
+  .touch .tstick { --d:140px; }
+  .touch .tknob { --d:58px; }
+  body.touch-on.fighting .touch .tstick { --d:124px; }
+  .tb.art { color:transparent; font-size:0; }
+  /* the box IS the sprite: a box larger than --d showed the neighbouring atlas sprites */
+  .touch .tstick, .tb.art { width:var(--d); height:var(--d); }
+  .touch .tknob { width:var(--d); height:var(--d); margin:calc(var(--d) / -2) 0 0 calc(var(--d) / -2); }
+  .tb.art.sm { --d:54px; } .tb.art.md { --d:66px; } .tb.art.lg { --d:82px; }
+  body.touch-on.fighting .tb.art.sm { --d:46px; } body.touch-on.fighting .tb.art.md { --d:58px; } body.touch-on.fighting .tb.art.lg { --d:70px; }
+  .tb.art.on { background-color:transparent; }
+  .tb.art.punch { --sx:686; --sy:1075; --sw:200; --sh:200; }
+  .tb.art.punch.on { --sx:691; --sy:872; --sw:200; --sh:200; }
+  .tb.art.kick { --sx:735; --sy:669; --sw:200; --sh:200; }
+  .tb.art.kick.on { --sx:462; --sy:1786; --sw:200; --sh:200; }
+  .tb.art.magic { --sx:471; --sy:1169; --sw:201; --sh:204; }
+  .tb.art.magic.on { --sx:258; --sy:1673; --sw:201; --sh:204; }
+  .tb.art.ranged { --sx:735; --sy:462; --sw:201; --sh:204; }
+  .tb.art.ranged.on { --sx:471; --sy:1376; --sw:201; --sh:204; }
+  .tb.art.super { --sx:675; --sy:1278; --sw:199; --sh:199; }
+  .tb.art.super.on { --sx:675; --sy:1480; --sw:199; --sh:199; }
+  .touch .tstick { --sx:2; --sy:735; --sw:466; --sh:466; }
+  .touch .tstick.on { --sx:2; --sy:1204; --sw:466; --sh:466; }
+  .touch .tknob { --sx:471; --sy:954; --sw:212; --sh:212; }
+  .touch .tstick.on .tknob { --sx:735; --sy:246; --sw:212; --sh:213; }
   .padhint { display:none; }
   body.pad-on .padhint { display:flex; }
   body.pad-on .keyhint, body.touch-on .keyhint { display:none; }
@@ -380,6 +412,11 @@
           <div class="state" id="stateYou">choosing a loadout</div>
           <div class="kit" id="kitYou"></div>
           <div class="act"><button id="ready" class="primary" disabled>Ready</button><span class="tag" id="readyHint"></span></div>
+          <div class="act"><label class="tag" for="roundTime">Round</label>
+            <select id="roundTime" aria-label="Round length">
+              <option value="30">30 s</option><option value="60" selected>60 s</option><option value="90">90 s</option>
+              <option value="120">2 min</option><option value="180">3 min</option><option value="300">5 min</option><option value="600">10 min</option>
+            </select><span class="tag" id="roundHint"></span></div>
         </div>
       </article>
       <div class="vs" aria-hidden="true">VS</div>
@@ -412,12 +449,12 @@
       <div class="tstick" id="tStick" aria-label="Move"><div class="tknob" id="tKnob"></div></div>
       <div class="tbtns">
         <button type="button" class="tb sm" data-a="ability">ABILITY</button>
-        <button type="button" class="tb sm" data-a="super">SUPER</button>
+        <button type="button" class="tb sm art super" data-a="super" aria-label="Super">SUPER</button>
         <button type="button" class="tb sm" data-a="raid">RAID</button>
-        <button type="button" class="tb md" data-a="ranged">RANGED</button>
-        <button type="button" class="tb md" data-a="magic">MAGIC</button>
-        <button type="button" class="tb lg" data-a="punch">PUNCH</button>
-        <button type="button" class="tb lg" data-a="kick">KICK</button>
+        <button type="button" class="tb md art ranged" data-a="ranged" aria-label="Ranged">RANGED</button>
+        <button type="button" class="tb md art magic" data-a="magic" aria-label="Magic">MAGIC</button>
+        <button type="button" class="tb lg art punch" data-a="punch" aria-label="Punch">PUNCH</button>
+        <button type="button" class="tb lg art kick" data-a="kick" aria-label="Kick">KICK</button>
       </div>
     </div>
     <div class="sides" id="sides"></div>

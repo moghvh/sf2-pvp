@@ -21,7 +21,16 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "no-referrer" },
         { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=(), payment=(), usb=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, noimageindex" }
+      ]
+    },
+    {
+      "source": "/(apk|cdn|anim|data)/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://shadowfight-liard.vercel.app" },
+        { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, noimageindex" }
       ]
     },
     {

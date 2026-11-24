@@ -59,8 +59,9 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 
 // `.json` too: pvp/public/atlas/sprites.json is the armory's sprite table, and dropping it
-// cost a 404 on the deployed site that the local server never showed
-copyTree(path.join(ROOT, 'pvp/public'), OUT, new Set(['.html', '.js', '.css', '.json', '.png', '.jpg', '.svg', '.ico']));
+// cost a 404 on the deployed site that the local server never showed. `.txt` is robots.txt,
+// which was written and then silently not shipped for the same reason.
+copyTree(path.join(ROOT, 'pvp/public'), OUT, new Set(['.html', '.js', '.css', '.json', '.png', '.jpg', '.svg', '.ico', '.txt']));
 copyTree(DATA_DIR, path.join(OUT, 'data'), new Set(['.json']));
 copyTree(CDN, path.join(OUT, 'cdn'), KEEP_CDN);
 copyTree(path.join(APK_ASSETS, 'textures'), path.join(OUT, 'apk/textures'), KEEP_APK);

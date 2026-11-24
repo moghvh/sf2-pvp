@@ -73,6 +73,19 @@ Damage is the engine's formula, not a curve that felt right: `<Damage Value> × 
 defence)/10)`, with the shipped block term (0.200003895) and critical term (×1.500038989) rolled on
 the engine's own LCG.
 
+These files cite the shipped script by class name and byte offset in their comments. That is
+deliberate: a citation is how a number here can be checked against the game instead of trusted, and
+removing them would make this repository harder to audit, not safer. A citation is not a copy, and
+that is measured rather than asserted — `pvp/tools/check-no-engine-text.mjs` looks for every
+substantial line of every published file inside the game's own script, as written and with
+whitespace removed (it is minified, so a copied line would most likely appear there spaced
+differently). On the published tree it reports **0 matches over 7121 lines**. Run it against your
+own copy:
+
+```powershell
+node pvp/tools/check-no-engine-text.mjs
+```
+
 ## Gates
 
 Thirteen headless suites. They need the data tables built.
@@ -91,6 +104,29 @@ reconnect protocol — is marked `OURS` where it is defined. Everything the ship
 drive — the Tabular AI's outcome tables, a few boss abilities, content the build does not ship —
 is named with its reason instead of being faked. `AGENTS.md` is the running record of how each
 stage was built and what each one left open.
+
+## If you deploy it
+
+`vercel.json` takes no comments, so the reasoning lives here.
+
+`pvp/tools/build-deploy.mjs` assembles `out/` from your own built data: the client, the tables, and
+roughly 250 MB of the game's art, audio and decoded animation. **That content is Nekki's, not
+yours to redistribute.** A deployment of this is for you and the people you invite, not a public
+mirror of the game's assets, and the header rules say so:
+
+| Route | What it sets, and why |
+| --- | --- |
+| everything | `Content-Security-Policy`, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer` (which also keeps a `?lobby=CODE` out of the Referer sent to Google Fonts), `X-Robots-Tag: noindex, nofollow, noarchive, noimageindex` |
+| `/apk`, `/cdn`, `/anim`, `/data` | `Access-Control-Allow-Origin` is the deployment's own origin instead of the platform default `*`, and `Cross-Origin-Resource-Policy: same-origin` — the page loads these same-origin and needs no CORS, so the default only let another site fetch, embed and re-serve them |
+
+`pvp/public/robots.txt` disallows everything for the same reason.
+
+Be clear about what that does and does not achieve. It stops cross-site `fetch`, canvas pixel reads
+from another page, cross-site embedding, and crawlers that honour robots rules. It does **not** stop
+anyone who simply requests the files: a browser game hands its assets to whatever asks for them, and
+no header changes that. If a deployment of this should not be reachable by strangers at all, do not
+put it on a public URL — put it behind your host's access control, or run it locally with
+`node pvp/server.mjs` (which binds `127.0.0.1` unless you set `SF2_HOST`).
 
 ## Licence
 

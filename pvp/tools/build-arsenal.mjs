@@ -572,7 +572,7 @@ const createInfo = (c) => {
   // the skeleton item itself: `SkeletonMagicMirrorNodes` is named by moves.xml only -- list.xml has
   // no such item, so `Bmb` gives that model no skeleton at all (recorded only when it is missing)
   const skelMissing = !!skel && !new RegExp('<Item\\s[^>]*Name="' + skel + '"[^>]*>').test(listXml);
-  return { name: c.name || null, skel, item: worn ? worn.Name : null, model, copy, ...(wear.length > 1 || wear.some((w) => !w.listed) ? { wear } : {}), ...(skelMissing ? { skelListed: false } : {}) };
+  return { name: c.name || null, frame: c.frame ?? 0, skel, item: worn ? worn.Name : null, model, copy, ...(wear.length > 1 || wear.some((w) => !w.listed) ? { wear } : {}), ...(skelMissing ? { skelListed: false } : {}) };
 };
 const SPAWN_PLAN = {};     // parent move -> [{ frame, phases: [move name, ...] }]
 // The created object's animation, then the animations that object's own moves fire
