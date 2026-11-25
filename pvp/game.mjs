@@ -193,6 +193,15 @@ const attrsOf = (c) => {
   const k = c.cls ? CLASS_BY_ID.get(c.cls) : null;
   return { ...attributesFor({ ...c, level: (k && k.level) || c.level || 1 }), ...((k && k.attrs) || {}) };
 };
+/** `MagicInitialCharge` is read in exactly one place -- `zd.lLa` (sim.mjs `resetMagic`) -- and
+ *  that runs only for a fighter the fight's own `<RechargeMagicEachRound ApplyTo=…>` names. No
+ *  PvP fight ships that rule, so the attribute would be inert without this: a class that sets it
+ *  carries the engine's own rule for itself, and nobody else's charge is touched (the rest keep
+ *  the charge they earned, across rounds, as a PvP fight does). OURS: which seat gets the rule. */
+const opensCharged = (c) => {
+  const k = c.cls ? CLASS_BY_ID.get(c.cls) : null;
+  return !!(k && k.attrs && k.attrs.MagicInitialCharge);
+};
 
 export { ROOT, DATA_DIR, CLIP_DIR, APK_CLIP_DIR, APK_ASSETS, arsenal, FAMILIES, ORPHAN_FAMILIES, WEAPONS, clips, STAGES, CLASSES, classProblems };
 
@@ -569,7 +578,11 @@ export function attachGame(server, opts = {}) {
         // MOD_TITAN), the computer that plays it, and -- where its fight has the rule --
         // <RechargeMagicEachRound ApplyTo="Bot"/>. `pvp: false`: it is the story's opponent, so
         // moves.xml's `<BattleType Value="FightPVP">` variants are not the ones that run.
-        ...(bot ? { perks: { p2: bot.seat.perks }, bots: { p2: PRACTICE.bot(bot.seat) }, pvp: false, rechargeMagic: { p2: bot.seat.rechargeMagic } } : {}),
+        ...(bot ? { perks: { p2: bot.seat.perks }, bots: { p2: PRACTICE.bot(bot.seat) }, pvp: false } : {}),
+        // who starts a round with the charge `<Magic><InitialCharge>` gives: a practice
+        // opponent whose own fight has `<RechargeMagicEachRound/>`, and a class that sets
+        // `MagicInitialCharge` (see `opensCharged`).
+        rechargeMagic: { p1: opensCharged(a), p2: bot ? !!bot.seat.rechargeMagic : opensCharged(b) },
         // the engine's round stages (ROUND banner, StartStance, FIGHT banner, EndStance) and
         // the stage's own start positions
         stages: true, start: startOf(arena),
