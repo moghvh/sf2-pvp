@@ -649,7 +649,10 @@ function tickSounds(s) {
         // own. No shipped file states which voice a *fighter* has, so this build uses the Male
         // variant (all three are in pvp/data/sounds.json; `snd_low_pl_attack*` is not in the APK
         // at all). A `<RandomSound>` has no voice and is a real random pick, as the file says.
-        let idx = c.voice ? Math.max(0, c.voice.indexOf(FIGHTER_VOICE[pid])) : (Math.random() * c.n.length) | 0;
+        // a cue in another voice is that voice's line, not this fighter's: skip it (indexOf -1 used
+        // to fall back to 0, so every shout played in Male, MaleLow and Female at once)
+        if (c.voice && !c.voice.includes(FIGHTER_VOICE[pid])) continue;
+        let idx = c.voice ? c.voice.indexOf(FIGHTER_VOICE[pid]) : (Math.random() * c.n.length) | 0;
         playSound(c.n[idx], c.v ?? 1);
       }
     }
@@ -664,7 +667,8 @@ function tickSounds(s) {
     if (last === -2) { SNDPROJ.set(p.id, -1); continue; }
     for (const c of SOUNDS.moves[p.move] || []) {
       if (!c.n || c.ev || c.f <= last || c.f > frame) continue;
-      const idx = c.voice ? Math.max(0, c.voice.indexOf('Male')) : (Math.random() * c.n.length) | 0;
+      if (c.voice && !c.voice.includes('Male')) continue;
+      const idx = c.voice ? c.voice.indexOf('Male') : (Math.random() * c.n.length) | 0;
       playSound(c.n[idx], c.v ?? 1);
     }
     SNDPROJ.set(p.id, frame);
@@ -678,7 +682,8 @@ function tickSounds(s) {
     if (!kind || !ev.move) continue;
     for (const c of SOUNDS.moves[ev.move] || []) {
       if (!c.n || c.ev !== kind) continue;
-      const idx = c.voice ? Math.max(0, c.voice.indexOf('Male')) : (Math.random() * c.n.length) | 0;
+      if (c.voice && !c.voice.includes('Male')) continue;
+      const idx = c.voice ? c.voice.indexOf('Male') : (Math.random() * c.n.length) | 0;
       playSound(c.n[idx], c.v ?? 1);
     }
   }
