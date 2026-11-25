@@ -280,6 +280,9 @@
   .tb.art.ranged.on { --sx:471; --sy:1376; --sw:201; --sh:204; }
   .tb.art.super { --sx:675; --sy:1278; --sw:199; --sh:199; }
   .tb.art.super.on { --sx:675; --sy:1480; --sw:199; --sh:199; }
+  /* the game's charge button IS its raid charge (FightButtons.btn_charge_*): the Raid button wears it too */
+  .tb.art.raid { --sx:675; --sy:1278; --sw:199; --sh:199; }
+  .tb.art.raid.on { --sx:675; --sy:1480; --sw:199; --sh:199; }
   .touch .tstick { --sx:2; --sy:735; --sw:466; --sh:466; }
   .touch .tstick.on { --sx:2; --sy:1204; --sw:466; --sh:466; }
   .touch .tknob { --sx:471; --sy:954; --sw:212; --sh:212; }
@@ -468,7 +471,7 @@
       <div class="tbtns">
         <button type="button" class="tb sm" data-a="ability">ABILITY</button>
         <button type="button" class="tb sm art super" data-a="super" aria-label="Super">SUPER</button>
-        <button type="button" class="tb sm" data-a="raid">RAID</button>
+        <button type="button" class="tb sm art raid" data-a="raid" aria-label="Raid charge">RAID</button>
         <button type="button" class="tb md art ranged" data-a="ranged" aria-label="Ranged">RANGED</button>
         <button type="button" class="tb md art magic" data-a="magic" aria-label="Magic">MAGIC</button>
         <button type="button" class="tb lg art punch" data-a="punch" aria-label="Punch">PUNCH</button>
