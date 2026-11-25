@@ -283,7 +283,7 @@ async function startMatch(m) {
   // the game's own pad has no Ability / RaidCharge button: ours appear only when this fighter's
   // moves are bound to those keys (one family each)
   { const kt = (m.keyTypes && m.keyTypes[m.you]) || [];
-    for (const [a, t] of [['ability', 'Ability'], ['raid', 'RaidCharge']]) {
+    for (const [a, t] of [['raid', 'RaidCharge']]) {
       const b = document.querySelector(`#touch [data-a="${a}"]`); if (b) b.hidden = !kt.includes(t);
     } }
   $('#banner').style.display = 'none';
