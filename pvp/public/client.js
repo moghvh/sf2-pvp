@@ -1353,7 +1353,7 @@ function render() {
         const [x, y] = ev.at ? toScreen(ev.at[0], ev.at[1], cx) : chestScreen(st, cx); return { x, y };
       };
       if (ev.t === 'hit') {
-        sparks.push({ ...at(), kind: 'hit', born: now, scale: 1 });
+        sparks.push({ ...at(), cx, kind: 'hit', born: now, scale: 1 });
         // a head hit is one of the game's own announced hit classes: its FightUI callout and
         // the screen kick internal_settings.xml states for `HeadHit` (no shipped entry exists
         // for a plain body hit, so a body hit does not shake the camera)
@@ -1362,7 +1362,7 @@ function render() {
           startShake('HeadHit', now);
         }
       }
-      if (ev.t === 'block') sparks.push({ ...at(), kind: 'block', born: now, scale: 0.9 });
+      if (ev.t === 'block') sparks.push({ ...at(), cx, kind: 'block', born: now, scale: 0.9 });
       if (ev.t === 'roundEnd') {
         // The engine's own round-end callout (`Battle.Vf`, sf2.js @202205, shown by `Jr.a_()` for
         // `tu(1.166)` s): `perfect` when the winner was never struck, `great` when it won on
@@ -1378,7 +1378,7 @@ function render() {
   }
   // a new round shows the game's own banner: `round` + number, then `fight` (sf2.js class Jr)
   if (snap.round !== lastRound) { lastRound = snap.round; bannerAt = now; }
-  drawSparks(now);
+  drawSparks(now, cx);
   if (DRAW.hud) { drawWho(cx); drawHud(); }
 
   // the game's own callouts and labels, straight off the APK's FightUI atlas
@@ -1606,7 +1606,9 @@ function impactRule(kind) {
   if (kind === 'critical') return rules.find((r) => r.critical && r.frames > 0) || null;
   return rules.find((r) => r.notBlock && r.notCritical && r.frames > 0) || null;
 }
-function drawSparks(now) {
+// a spark is placed in screen pixels at the camera of its own tick; the camera keeps panning
+// while the sheet plays, so it is shifted by that pan to stay on the struck body part
+function drawSparks(now, camX) {
   for (const s of sparks) {
     const rule = impactRule(s.kind);
     const sheet = rule && FX && FX.sheets && FX.sheets[rule.file];
@@ -1619,7 +1621,7 @@ function drawSparks(now) {
     const sc = s.scale * (rule.sc || 1);
     const w = f.w * sc, h = f.h * sc;
     ctx.save();
-    ctx.translate(s.x, s.y);
+    ctx.translate(s.x + (s.cx != null && camX != null ? (s.cx - camX) * viewScale() : 0), s.y);
     if (rule.rot) ctx.rotate(rule.rot * Math.PI / 180);   // <HitEffect StartingRotation="…">
     ctx.drawImage(im, f.x, im.naturalHeight - (f.y + f.h), f.w, f.h, -w / 2, -h / 2, w, h);
     ctx.restore();
