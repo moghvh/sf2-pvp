@@ -109,6 +109,9 @@ function wantsFor(fam) {
     for (const f of [0.15, 0.3, 0.45, 0.6, 0.75, 0.9]) out.add(Math.max(60, lo + (hi - lo) * f));
   }
   if (!out.size) out.add(140);
+  // a window that lives only under <Tactics> is the AI's, not a player rule (the Hoaxen spike:
+  // Tactics Min 400, its edges ride the chest): a player casts at any distance, so probe close too
+  out.add(100);
   return [...out].map((w) => Math.max(60, Math.min(w, 700))).sort((a, b) => a - b).slice(0, 12);
 }
 

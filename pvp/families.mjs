@@ -9,7 +9,6 @@ import path from 'node:path';
 /** moves.xml-only sets this build cannot run, each with the shipped fact that stops it. (Stage 18
  *  ported the other three the stage 16 list named: Arcane, Assistant and Saturn run now.) */
 const NOT_SHIPPED = {
-  Hoaxen: 'hoaxen_ability.bytes is now decoded (free ZONE_RAID pack) but it drives a 279-node rig and the strike names the edges of that rig (Edge132/139/174/175); the model carrying them (mdl_body_hoaxen_raid) exists only as a Unity model in the free packs, a format not parsed here, so the 0.2 strike has no geometry',
   Magic: 'its three casts are locked to magic items of SubType MagicDragon / MagicKick / MagicScythe and no list.xml item has one, so no carried item can open them; the kick makes its hit box on SkeletonMagicMirrorNodes, an item list.xml lacks. (Their object clips are no longer the gap: simple_idle_anim.bytes is in the android pack CLANS and magic_dragon_start.bytes in the APK itself.)',
 };
 

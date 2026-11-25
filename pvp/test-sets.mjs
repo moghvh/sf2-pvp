@@ -102,8 +102,8 @@ console.log('A — what this build ships for the five sets');
   }
   for (const c of ['saturn_blaster_shot_pistol', 'saturn_blaster_hide_pistol', 'saturn_blaster_strike_pistol', 'front_flip', 'two_hand_low_slash', 'jump_away', 'fireball_middle']) ok(!!clips[c], `the animation bank has the clip ${c}`);
   const fam = (id) => ALL.find((f) => f.id === id);
-  ok(['only:Arcane', 'only:Assistant', 'only:Saturn', 'only:Blackness', 'only:Musket'].every((id) => fam(id) && fam(id).playable), 'only:Arcane, only:Assistant, only:Saturn, only:Blackness are playable');
-  ok(['only:Magic', 'only:Hoaxen'].every((id) => fam(id) && !fam(id).playable && fam(id).reason === 'not-shipped' && fam(id).needs), 'only:Magic, only:Hoaxen are not offered, each with its reason');
+  ok(['only:Arcane', 'only:Assistant', 'only:Saturn', 'only:Blackness', 'only:Musket', 'only:Hoaxen'].every((id) => fam(id) && fam(id).playable), 'only:Arcane, only:Assistant, only:Saturn, only:Blackness are playable');
+  ok(['only:Magic'].every((id) => fam(id) && !fam(id).playable && fam(id).reason === 'not-shipped' && fam(id).needs), 'only:Magic is not offered, each with its reason');
 }
 
 // ---------------------------------------------------------------- B: <Rotation>
