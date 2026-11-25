@@ -143,9 +143,13 @@ console.log('\nD — starting fights is rationed');
   ok(upgraded, 'handshake');
   const msgs = reader(s);
   s.write(frame({ t: 'join', name: 'churn', sid: 'abuse-tab-0001' }));
-  await wait(300);
+  // wait for the server's own answer to the join, not a fixed delay: a slow first join (the
+  // practice tables load lazily) let the burst arrive first and nothing came back at all
+  for (let t = 0; t < 50 && !msgs.length; t++) await wait(100);
   for (let i = 0; i < 10; i++) { s.write(frame({ t: 'practice', boss: 'Lynx_Claws' })); s.write(frame({ t: 'quit' })); }
-  await wait(900);
+  const answered = () => msgs.some((m) => m.t === 'start' || (m.t === 'practiceError' && m.error === 'slow-down'));
+  for (let t = 0; t < 50 && !answered(); t++) await wait(100);
+  await wait(400);   // the rest of the burst's answers
   const slow = msgs.filter((m) => m.t === 'practiceError' && m.error === 'slow-down').length;
   const starts = msgs.filter((m) => m.t === 'start').length;
   ok(starts <= 2 && slow > 0, `10 practice/quit pairs in one burst: ${starts} fight(s) started, ${slow} refused with slow-down`);
@@ -193,11 +197,14 @@ console.log('\nF — churn cannot make the public lobby unpairable');
   const m1 = reader(one.s), m2 = reader(two.s);
   one.s.write(frame({ t: 'join', name: 'Pair1' }));
   two.s.write(frame({ t: 'join', name: 'Pair2' }));
-  await wait(300);
+  // each join answered before ready is said (a fixed 300 ms lost the race on a busy machine)
+  for (let t = 0; t < 50 && !(m1.length && m2.length); t++) await wait(100);
   one.s.write(frame({ t: 'ready', on: true }));
   two.s.write(frame({ t: 'ready', on: true }));
-  await wait(900);
-  const started = m1.some((m) => m.t === 'start') && m2.some((m) => m.t === 'start');
+  const bothStarted = () => m1.some((m) => m.t === 'start') && m2.some((m) => m.t === 'start');
+  for (let t = 0; t < 50 && !bothStarted(); t++) await wait(100);
+  const started = bothStarted();
+  if (!started && process.env.ABUSE_DEBUG) console.log(JSON.stringify([m1.map((m) => m.t + (m.error ? ':' + m.error : '')), m2.map((m) => m.t + (m.error ? ':' + m.error : ''))]), JSON.stringify(m1.filter((m) => m.t === 'lobby').slice(-1)).slice(0, 800));
   ok(started, 'two players who say ready after a churning socket has left are still paired');
   one.s.destroy(); two.s.destroy();
   await wait(200);

@@ -894,7 +894,10 @@ export function attachGame(server, opts = {}) {
         // player it had already shifted out of the queue with it. Two tabs could both be ready,
         // in a lobby that said "2 players here", and never be paired.
         for (let i = queue.length - 1; i >= 0; i--) {
-          if (!clients.get(queue[i]) || queue.indexOf(queue[i]) !== i) queue.splice(i, 1);
+          // a socket the far end has already closed is gone too, even before its 'close' handler
+          // has run: pairing a live player with it started a fight that ended at once
+          const q = clients.get(queue[i]), so = q && q.socket;
+          if (!q || queue.indexOf(queue[i]) !== i || (so && (so.destroyed || !so.writable || so.readableEnded))) queue.splice(i, 1);
         }
         // pair the first two ready players
         while (queue.length >= 2) {
