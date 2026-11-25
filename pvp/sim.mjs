@@ -104,7 +104,7 @@ export function normalizeSize(j, clipName, idxOf) {
   // skeleton node names (NHeel_2) are not the clip's names (by index, AGENTS stage 12): idxOf maps them
   const piv = idxOf ? idxOf(pivotOf(clipName || j.name)) : -1;
   const pi = piv >= 0 ? piv : (j.nodeOrder || []).indexOf('Pelvis');
-  const ox = pi >= 0 ? f0[pi][0] : 0, oy = Math.max(...f0.map((p) => p[1]));
+  const ox = pi >= 0 ? f0[pi][0] : 0, oy = Math.min(...f0.map((p) => p[1]));   // clip y is UP: the feet are the lowest node
   // each frame is shrunk about that frame's own pivot node x (else Pelvis), so the clip's root motion (a step's
   // travel, a lunge) is the file's and only the body's size changes; y about the stance's feet
   const n = j.nodeCount || 67;

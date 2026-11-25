@@ -102,9 +102,16 @@ for (const e of elements(skel)) {
 // --- per model: its own edges, its nodes, and the capsules it overrides --------------------
 const models = {};
 const unresolvedEdges = new Set();
-for (const [file, pack] of packs) {
+// Models only the FREE build ships, as decrypted Unity TextAssets in the same XML scene format
+// (extracted/f2p-models/<name>.xml, written locally; e.g. mdl_body_hoaxen_raid, whose spike
+// edges Edge132/139/174/175 are MacroNodes over mdl_skeleton's own nodes). Read for edges only.
+const F2P_DIR = path.join(ROOT, 'extracted/f2p-models');
+const f2p = new Map();
+try { for (const f of fs.readdirSync(F2P_DIR)) if (f.endsWith('.xml')) f2p.set(f.slice(0, -4), fs.readFileSync(path.join(F2P_DIR, f), 'utf8')); } catch { /* none */ }
+for (const [file, pack] of [...packs, ['f2p', { entries: f2p }]]) {
   for (const [name, xml] of pack.entries) {
     if (name === 'mdl_skeleton') continue;
+    if (file === 'f2p' && packs.get(PACKS[0]).entries.has(name)) continue;
     const resolve = nodeResolver(xml, anchors);
     const edges = {};
     let unresolved = 0;

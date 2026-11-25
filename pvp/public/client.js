@@ -811,7 +811,7 @@ function tickEffects(s) {
     for (const c of EFFC.moves[st.move] || []) {
       if (!c.ev && c.f > pos.f && c.f <= frame && cueOk(c, pid)) {
         const at = partScreen(st, c.part, cx);
-        if (spawnEffect(c, { x: at[0] + (c.shift || [0, 0])[0] * st.facing, y: at[1] + (c.shift || [0, 0])[1] }, pid)) {
+        if (spawnEffect(c, { x: at[0] + (c.shift || [0, 0])[0] * st.facing, y: at[1] - (c.shift || [0, 0])[1] }, pid)) {
           const e = effects[effects.length - 1];
           e.facing = st.facing; e.move = st.move;
         }
@@ -832,7 +832,7 @@ function tickEffects(s) {
     for (const c of EFFC.moves[p.move] || []) {
       if (!c.ev && c.f > last && c.f <= (p.frame || 0) && cueOk(c, p.owner)) {
         const sp = projPartScreen(p.id, c.part, p, cx);
-        if (spawnEffect(c, { x: sp[0] + (c.shift || [0, 0])[0] * p.facing, y: sp[1] + (c.shift || [0, 0])[1] }, null)) {
+        if (spawnEffect(c, { x: sp[0] + (c.shift || [0, 0])[0] * p.facing, y: sp[1] - (c.shift || [0, 0])[1] }, null)) {
           const e = effects[effects.length - 1];
           e.proj = p.id; e.facing = p.facing;
         }
@@ -855,14 +855,14 @@ function tickEffects(s) {
         // an object that lives on (a lit bomb's fuse starts at the end of its first phase) keeps
         // the cue's own Follow / Looped and carries the effect; one that is gone leaves it there
         const alive = live.has(ev.proj.id);
-        if (spawnEffect(alive ? c : { ...c, follow: 0, loop: 0 }, { x: sp[0] + sh[0] * ev.proj.facing, y: sp[1] + sh[1] }, null)) {
+        if (spawnEffect(alive ? c : { ...c, follow: 0, loop: 0 }, { x: sp[0] + sh[0] * ev.proj.facing, y: sp[1] - sh[1] }, null)) {
           const e = effects[effects.length - 1];
           e.facing = ev.proj.facing;
           if (alive) e.proj = ev.proj.id;
         }
       } else if (s[owner]) {
         const st = s[owner], at = partScreen(st, c.part, cx);
-        if (spawnEffect({ ...c, follow: 0, loop: 0 }, { x: at[0] + sh[0] * st.facing, y: at[1] + sh[1] }, owner)) effects[effects.length - 1].facing = st.facing;
+        if (spawnEffect({ ...c, follow: 0, loop: 0 }, { x: at[0] + sh[0] * st.facing, y: at[1] - sh[1] }, owner)) effects[effects.length - 1].facing = st.facing;
       }
     }
   }
@@ -883,7 +883,7 @@ function drawEffects(s, cx) {
       const st = s[e.owner];
       const at = partScreen(st, e.part, cx);
       e.x = at[0] + e.shift[0] * st.facing;
-      e.y = at[1] + e.shift[1];
+      e.y = at[1] - e.shift[1];
       e.facing = st.facing;
       e.cx = cx;
     }
@@ -891,7 +891,7 @@ function drawEffects(s, cx) {
     // and a looped one ends with it
     if (e.proj !== undefined && (e.follow || e.loop)) {
       const p = s && (s.projectiles || []).find((q) => q.id === e.proj);
-      if (p) { const at = projPartScreen(p.id, e.part, p, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] + e.shift[1]; e.facing = p.facing; e.cx = cx; }
+      if (p) { const at = projPartScreen(p.id, e.part, p, cx); e.x = at[0] + e.shift[0] * p.facing; e.y = at[1] - e.shift[1]; e.facing = p.facing; e.cx = cx; }
       // the effect belongs to the object (`<Position Player="Me" … Follow="1">`): it goes with it
       else { e.dead = true; continue; }
     }

@@ -75,6 +75,9 @@ const COMBOS = [
   // A set whose only attack animation hangs off one of these can only be seen landing if the
   // bot presses that key. (There is no block key: the engine blocks by interval.)
   { super: 1 }, { magic: 1 }, { ability: 1 }, { raid: 1 }, { ranged: 1 },
+  // a move keyed on the same strike twice (`MusketSuperSlash`: [Punch Tap, Punch Tap, Forward
+  // Hold]) needs two separate presses: a per-tick sequence, the forward held throughout
+  Array.from({ length: 30 }, (_, i) => (i === 0 || i === 2 ? { punch: 1, right: 1 } : { right: 1 })),
 ];
 
 /** Distances worth trying for this family: every distance its own moves are authored
@@ -140,7 +143,7 @@ function fightOut(attacker, defender, want, seconds = 45, specials = [], gear = 
     if (mine.state === 'idle' && opp.state === 'idle' && !fight.projectiles.length
       && Math.abs((opp.x - mine.x) - want) > 0.5) place();
     const step = acts[Math.floor(t / 30) % acts.length];
-    fight.step({ p1: step, p2: {} });
+    fight.step({ p1: Array.isArray(step) ? step[t % 30] : step, p2: {} });
     const s = fight.snapshot();
     for (const ev of s.events) {
       if ((ev.t !== 'hit' && ev.t !== 'block') || ev.by !== 'p1' || !(ev.dmg >= 0)) continue;
