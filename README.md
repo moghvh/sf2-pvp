@@ -1,9 +1,12 @@
 # sf2-pvp — a player-vs-player fight mode on the shipped engine's own rules
 
 An authoritative Node match server and a canvas client for a 1v1 fighting game: private lobbies,
-weapon and gear selection, practice against the game's own 175 opponents, 47 stages, and a combat
-core that is a **port of the shipped Shadow Fight 2 web engine's own rules** rather than a
-hand-tuned imitation of them.
+a roster of eight balanced classes (or a hand-picked loadout), practice against the game's own
+175 opponents, 47 stages, and a combat core that is a **port of the shipped Shadow Fight 2 web
+engine's own rules** rather than a hand-tuned imitation of them.
+
+**Live:** <https://shadowfight-liard.vercel.app> — the deployment this repository builds. The page
+links back here; see "If you deploy it" for what that deployment serves and how to close it.
 
 **No npm dependencies.** The WebSocket server is written by hand over `node:http`; the client is
 plain ES modules and one `<canvas>`.
@@ -88,10 +91,10 @@ node pvp/tools/check-no-engine-text.mjs
 
 ## Gates
 
-Fourteen headless suites. Most need the data tables built; `test-abuse` and `test-gate` do not.
+Fifteen headless suites. Most need the data tables built; `test-abuse` and `test-gate` do not.
 
 ```powershell
-node pvp/test-weapons.mjs; node pvp/test-movesets.mjs; node pvp/test-hitboxes.mjs; node pvp/test-inputs.mjs; node pvp/test-ragdoll.mjs; node pvp/test-sets.mjs; node pvp/test-skills.mjs; node pvp/test-locomotion.mjs; node pvp/test-events.mjs; node pvp/test-lobby.mjs; node pvp/test-practice.mjs; node pvp/test-abuse.mjs; node pvp/test-gate.mjs
+node pvp/test-weapons.mjs; node pvp/test-movesets.mjs; node pvp/test-hitboxes.mjs; node pvp/test-inputs.mjs; node pvp/test-ragdoll.mjs; node pvp/test-sets.mjs; node pvp/test-skills.mjs; node pvp/test-locomotion.mjs; node pvp/test-events.mjs; node pvp/test-lobby.mjs; node pvp/test-practice.mjs; node pvp/test-classes.mjs; node pvp/test-abuse.mjs; node pvp/test-gate.mjs
 ```
 
 `node pvp/test-match.mjs` needs a server already running on 8787.
@@ -100,6 +103,24 @@ node pvp/test-weapons.mjs; node pvp/test-movesets.mjs; node pvp/test-hitboxes.mj
 against — oversized frames, amplification, origin and connection limits, path traversal in the dev
 file server. `test-gate` runs `middleware.js` as the plain function it is, so the content gate below
 is checked here rather than discovered on a live deployment.
+
+## Classes
+
+Free picking was unfair: the longest weapon in the game plus the biggest spell in it is a loadout
+that has already won. The lobby opens on a roster of **eight classes** instead — a class is one
+shipped weapon family with its own thrown weapon and spell, plus an attribute override. Helm and
+armor stay yours: they change the meshes you are drawn with and nothing a fight reads, so
+re-styling keeps the class, while touching the weapon, the thrown weapon or the spell leaves it
+for a hand-picked loadout.
+
+The identities and the numbers in each override are ours; everything they are made of is the
+game's. `pvp/tools/measure-families.mjs` measures every family from the shipped files (reach
+through the engine's own capsule test, startup and recovery from the clips, damage through the
+align formula), `pvp/tools/build-classes.mjs` writes `pvp/data/classes.json` only if all 49
+balance rules pass, and the server refuses any attribute a fight does not actually read — with
+the reason, since most of them cancel in the align formula and would be a lie on the card.
+`node pvp/test-classes.mjs` re-measures the whole table and proves each attribute on a real
+fight.
 
 ## What is ours, and what is not modelled
 
