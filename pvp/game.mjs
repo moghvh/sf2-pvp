@@ -21,6 +21,12 @@ const { arsenal, clips, FAMILIES, ORPHAN_FAMILIES, WEAPONS, moveData, gearFor, D
   hitboxes: HITBOXES, combat: COMBAT, locomotion: LOCOMOTION, poses: poseOf, attributesFor } = GAME;
 // the game's own opponents, for a practice fight against the computer (pvp/practice.mjs)
 const PRACTICE = loadPractice(GAME);
+// The <Key Type> values a weapon family's own moves are bound to. The game's touch layout
+// (FightButtons.png) has no Ability or RaidCharge button -- only one family each uses those keys --
+// so the client shows those two (text) buttons only to a fighter whose moves need them.
+const MOVE_BY_NAME = new Map(moveData.moves.map((x) => [x.name, x]));
+const KEYS_OF = new Map([...FAMILIES, ...ORPHAN_FAMILIES].map((f) => [f.id,
+  [...new Set(f.moves.flatMap((n) => (MOVE_BY_NAME.get(typeof n === 'string' ? n : n.name) || {}).keys || []).map((k) => k.type))]]));
 // Gear only the game's opponents wear: list.xml marks it `ShopHide` and a stages.xml <Warrior>
 // (pvp/data/practice.json) carries it. The lobby files these under their own group so a boss's
 // body, head or weapon is not offered next to the shop's items. The defaults every fighter
@@ -598,6 +604,7 @@ export function attachGame(server, opts = {}) {
       p1: { name: a.name, weapon: a.weapon, ranged: a.ranged, magic: a.magic, helm: a.helm, armor: a.armor, body: bodyOf(a), cls: a.cls || null },
       p2: { name: b.name, weapon: b.weapon, ranged: b.ranged, magic: b.magic, helm: b.helm, armor: b.armor, body: bodyOf(b), cls: b.cls || null,
         ...(bot ? { weaponItem: bot.seat.weaponItem || null } : {}) },
+      keyTypes: { p1: KEYS_OF.get(a.weapon) || [], p2: KEYS_OF.get(b.weapon) || [] },
       // a practice fight says so: who the computer plays, and with which of the game's tactics
       ...(bot ? { practice: { boss: bot.seat.boss, kind: bot.seat.kind, name: bot.seat.name, tactic: bot.seat.tactic, zone: bot.seat.zone } } : {}),
       // the `<Conditions><Item SubType=…>` gate every <Effect>/<Sound> in moves.xml uses: one

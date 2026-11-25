@@ -280,6 +280,12 @@ async function startMatch(m) {
   // a practice fight can be walked out of (OURS): the button sits in the arena's corner, which
   // the engine's HUD leaves empty
   { const q = $('#quitPractice'); if (q) q.hidden = !m.practice; }
+  // the game's own pad has no Ability / RaidCharge button: ours appear only when this fighter's
+  // moves are bound to those keys (one family each)
+  { const kt = (m.keyTypes && m.keyTypes[m.you]) || [];
+    for (const [a, t] of [['ability', 'Ability'], ['raid', 'RaidCharge']]) {
+      const b = document.querySelector(`#touch [data-a="${a}"]`); if (b) b.hidden = !kt.includes(t);
+    } }
   $('#banner').style.display = 'none';
   // the server hands out the stage; only the arenas whose every atlas is inside the APK can
   // be drawn, and their images are fetched before the first frame so nothing pops in
